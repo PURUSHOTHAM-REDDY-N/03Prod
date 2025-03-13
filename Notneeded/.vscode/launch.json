@@ -1,0 +1,24 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Template Validator",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/app/utils/template_validator.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Debug Template Validator Tests",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/utils/test_template_validator.py",
+                "-v"
+            ],
+            "justMyCode": true
+        }
+    ]
+}

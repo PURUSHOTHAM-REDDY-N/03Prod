@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Timetable{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-between items-center mb-3">
+    <h1 class="page-title">Today's Tasks</h1>
+    <div class="d-flex gap-1">
+        <button class="btn btn-secondary" data-href="{{ url_for('main.index') }}">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+        <button class="btn btn-primary" id="refresh-tasks-btn">
+            <i class="fas fa-redo"></i> Regenerate Tasks
+        </button>
+        <button class="btn btn-secondary" id="add-bonus-task-btn">
+            <i class="fas fa-plus"></i> Add Task
+        </button>
+    </div>
+</div>
+
+<div class="mb-3">
+    <p class="text-secondary">{{ current_date.strftime('%A, %B %d, %Y') }}</p>
+</div>
+
+{% if not active_tasks and not completed_tasks %}
+    <div class="glass-card text-center">
+        <p class="mb-2">No tasks available for today.</p>
+        <button class="btn btn-primary" id="generate-tasks-btn">Generate Tasks</button>
+    </div>
+{% else %}
+    {% if active_tasks %}
+        <h2 class="mb-2">Active Tasks</h2>
+        <div class="grid">
+            {% for task in active_tasks %}
+                <div class="glass-card task-card" id="task-{{ task.id }}">
+                    <div class="task-header">
+                        <h3 class="task-title">{{ task.title }}</h3>
+                        <span class="task-badge">
+                            {% if task.task_type is string %}
+                                {{ task.task_type }}
+                            {% elif task.task_type is mapping and task.task_type.name %}
+                                {{ task.task_type.name }}
+                            {% else %}
+                                Task
+                            {% endif %}
+                        </span>
+                    </div>
+                    
+                    <div class="task-content">
+                        <p class="task-description">{{ task.description | safe }}</p>
+                        
+                        <div class="task-meta">
+                            <span>
+                                <i class="fas fa-book"></i> {{ task.subject.title }}
+                            </span>
+                            <span>
+                                <i class="fas fa-clock"></i> {{ task.total_duration }} min
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="task-actions">
+                        <button class="btn btn-primary w-full" onclick="completeTask('{{ task.id }}')">
+                            <i class="fas fa-check"></i> Complete
+                        </button>
+                        <div class="d-flex gap-1 mt-1">
+                            <button class="btn btn-secondary flex-1" onclick="skipTask('{{ task.id }}')">
+                                <i class="fas fa-forward"></i> Skip
+                            </button>
+                            <button class="btn btn-info flex-1" onclick="startPomodoroWithTask('{{ task.id }}', '{{ task.title }}')">
+                                <i class="fas fa-clock"></i> Pomodoro
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    
+    {% if completed_tasks %}
+        <h2 class="mt-4 mb-2">Completed Tasks</h2>
+        <div class="grid">
+            {% for task in completed_tasks %}
+                <div class="glass-card task-card" style="opacity: 0.8;">
+                    <div class="task-header">
+                        <h3 class="task-title">{{ task.title }}</h3>
+                        <span class="task-badge">
+                            {% if task.task_type is string %}
+                                {{ task.task_type }}
+                            {% elif task.task_type is mapping and task.task_type.name %}
+                                {{ task.task_type.name }}
+                            {% else %}
+                                Task
+                            {% endif %}
+                        </span>
+                    </div>
+                    
+                    <div class="task-content">
+                        <p class="task-description">{{ task.description | safe }}</p>
+                        
+                        <div class="task-meta">
+                            <span>
+                                <i class="fas fa-book"></i> {{ task.subject.title }}
+                            </span>
+                            <span>
+                                <i class="fas fa-clock"></i> {{ task.total_duration }} min
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="task-actions">
+                        <button class="btn btn-success w-full" disabled>
+                            <i class="fas fa-check"></i> Completed
+                        </button>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Start Pomodoro with selected task
+function startPomodoroWithTask(taskId, taskTitle) {
+    // Save task to localStorage for the Pomodoro page
+    localStorage.setItem('currentPomodoroTask', taskId);
+    localStorage.setItem('currentPomodoroTaskTitle', taskTitle);
+    
+    // Navigate to the Pomodoro page
+    window.location.href = "{{ url_for('main.pomodoro') }}";
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+        // Handle refresh button with data-href attribute
+        document.querySelector('button[data-href]').addEventListener('click', function() {
+            location.href = this.getAttribute('data-href');
+        });
+        
+        // Refresh tasks button
+        const refreshTasksBtn = document.getElementById('refresh-tasks-btn');
+        if (refreshTasksBtn) {
+            refreshTasksBtn.addEventListener('click', function() {
+                if (confirm('This will replace all your current tasks with new ones. Continue?')) {
+                    fetch('/api/tasks/refresh', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        }
+                    });
+                }
+            });
+        }
+        
+        // Generate tasks button (for when no tasks exist)
+        const generateTasksBtn = document.getElementById('generate-tasks-btn');
+        if (generateTasksBtn) {
+            generateTasksBtn.addEventListener('click', function() {
+                fetch('/api/tasks/refresh', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    }
+                });
+            });
+        }
+        
+        // Add bonus task button
+        const addBonusTaskBtn = document.getElementById('add-bonus-task-btn');
+        if (addBonusTaskBtn) {
+            addBonusTaskBtn.addEventListener('click', function() {
+                fetch('/api/tasks/add_bonus', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    }
+                });
+            });
+        }
+    });
+</script>
+{% endblock %}

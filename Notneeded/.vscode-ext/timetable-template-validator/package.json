@@ -1,0 +1,52 @@
+{
+  "name": "timetable-template-validator",
+  "displayName": "Timetable Template Validator",
+  "description": "Real-time validation for Jinja2 templates in the Timetable project",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:html"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "timetable-template-validator.validateCurrentFile",
+        "title": "Validate Current Template"
+      }
+    ],
+    "configuration": {
+      "title": "Timetable Template Validator",
+      "properties": {
+        "timetableTemplateValidator.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the template validator"
+        },
+        "timetableTemplateValidator.validateOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run validator automatically when saving HTML files"
+        },
+        "timetableTemplateValidator.validateOnType": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run validator automatically while typing (may be resource intensive)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "echo 'Packaging extension'",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.60.0",
+    "vsce": "^2.7.0"
+  }
+}

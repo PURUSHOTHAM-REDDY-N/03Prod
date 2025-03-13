@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="{{ 'dark' if current_user.is_authenticated and current_user.dark_mode else 'light' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Timetable{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    {% block head %}{% endblock %}
+</head>
+<body>
+<header>
+        <nav class="navbar glass-noise">
+            <a href="{{ url_for('main.index') }}" class="navbar-brand">Timetable</a>
+            
+            <div class="mobile-menu-toggle" id="mobile-menu-toggle">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+            
+            <ul class="navbar-nav" id="navbar-nav">
+                {% if current_user.is_authenticated %}
+                <li><a href="{{ url_for('main.index') }}" class="nav-link {{ 'active' if request.endpoint == 'main.index' }}">Dashboard</a></li>
+                <li><a href="{{ url_for('main.calendar') }}" class="nav-link {{ 'active' if request.endpoint == 'main.calendar' }}">Calendar</a></li>
+                <li><a href="{{ url_for('main.curriculum') }}" class="nav-link {{ 'active' if request.endpoint == 'main.curriculum' }}">Curriculum</a></li>
+                <li><a href="{{ url_for('main.progress') }}" class="nav-link {{ 'active' if request.endpoint == 'main.progress' }}">Progress</a></li>
+                <li><a href="{{ url_for('main.pomodoro') }}" class="nav-link {{ 'active' if request.endpoint == 'main.pomodoro' }}">Pomodoro</a></li>
+                <li><a href="{{ url_for('main.settings') }}" class="nav-link {{ 'active' if request.endpoint == 'main.settings' }}">Settings</a></li>
+                <li><a href="{{ url_for('auth.logout') }}" class="nav-link">Logout</a></li>
+                <li>
+                    <div class="dark-mode-toggle glass-noise" id="dark-mode-toggle">
+                        <i class="fas {{ 'fa-sun' if current_user.dark_mode else 'fa-moon' }}"></i>
+                        <span>{{ 'Light Mode' if current_user.dark_mode else 'Dark Mode' }}</span>
+                    </div>
+                </li>
+                {% else %}
+                <li><a href="{{ url_for('auth.login') }}" class="nav-link {{ 'active' if request.endpoint == 'auth.login' }}">Login</a></li>
+                <li><a href="{{ url_for('auth.register') }}" class="nav-link {{ 'active' if request.endpoint == 'auth.register' }}">Register</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </header>
+    
+    <div class="flash-messages">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+    
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <script>
+        // Mobile Navigation
+        document.addEventListener('DOMContentLoaded', function() {
+            const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+            const navbarNav = document.getElementById('navbar-nav');
+            
+            if (mobileMenuToggle && navbarNav) {
+                mobileMenuToggle.addEventListener('click', function() {
+                    mobileMenuToggle.classList.toggle('active');
+                    navbarNav.classList.toggle('open');
+                });
+                
+                // Close menu when clicking on nav links
+                document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
+                    link.addEventListener('click', function() {
+                        mobileMenuToggle.classList.remove('active');
+                        navbarNav.classList.remove('open');
+                    });
+                });
+            }
+        });
+        
+        // Toast notification system
+        function showToast(message, type = 'info', duration = 3000) {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            
+            document.querySelector('.flash-messages').appendChild(toast);
+            
+            // Trigger animation
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 10);
+            
+            // Auto-remove after duration
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, duration);
+        }
+        
+        // Apply animations to content
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add slide-up animation to main content
+            const mainContent = document.querySelector('main.container');
+            if (mainContent) {
+                mainContent.classList.add('slide-up');
+            }
+            
+            // Apply staggered animation to task cards and list items
+            document.querySelectorAll('.grid').forEach(grid => {
+                grid.classList.add('stagger-fade-in');
+            });
+            
+            // Apply lift effect and glass noise to cards
+            document.querySelectorAll('.glass-card').forEach(card => {
+                card.classList.add('hover-lift', 'glass-noise');
+            });
+            
+            // Add background animation to main content
+            document.querySelector('body').classList.add('animated-bg');
+        });
+        
+        // Dark mode toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            const darkModeToggle = document.getElementById('dark-mode-toggle');
+            if (darkModeToggle) {
+                darkModeToggle.addEventListener('click', function() {
+                    const currentTheme = document.documentElement.getAttribute('data-theme');
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    
+                    document.documentElement.setAttribute('data-theme', newTheme);
+                    
+                    // Update icon and text
+                    const icon = this.querySelector('i');
+                    const text = this.querySelector('span');
+                    
+                    if (newTheme === 'dark') {
+                        icon.classList.replace('fa-moon', 'fa-sun');
+                        text.textContent = 'Light Mode';
+                    } else {
+                        icon.classList.replace('fa-sun', 'fa-moon');
+                        text.textContent = 'Dark Mode';
+                    }
+                    
+                    // Save preference via API
+                    fetch('/api/update-dark-mode', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            dark_mode: newTheme === 'dark'
+                        }),
+                    });
+                });
+            }
+            
+            // Auto-hide flash messages after 5 seconds
+            const flashMessages = document.querySelectorAll('.flash');
+            flashMessages.forEach(function(message) {
+                setTimeout(function() {
+                    message.style.opacity = '0';
+                    message.style.transform = 'translateX(100%)';
+                    setTimeout(function() {
+                        message.remove();
+                    }, 300);
+                }, 5000);
+            });
+        });
+
+        // Task actions
+        function completeTask(taskId) {
+            // Add completion animation to the task card
+            const taskCard = document.getElementById(`task-${taskId}`);
+            if (taskCard) {
+                taskCard.classList.add('completed');
+            }
+            
+            fetch(`/api/tasks/complete/${taskId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success toast
+                    showToast('Task completed successfully!', 'success');
+                    
+                    // Remove task from active list after animation completes
+                    setTimeout(() => {
+                        if (taskCard) {
+                            taskCard.remove();
+                        }
+                    }, 500);
+                    
+                    // Show confidence prompt if subtopics are returned
+                    if (data.subtopics && data.subtopics.length > 0) {
+                        showConfidencePrompt(taskId, data.subtopics);
+                    }
+                } else {
+                    showToast('Error completing task', 'error');
+                }
+            })
+            .catch(error => {
+                showToast('Network error occurred', 'error');
+            });
+        }
+        
+        function skipTask(taskId) {
+            const taskCard = document.getElementById(`task-${taskId}`);
+            if (taskCard) {
+                // Add slide-out animation
+                taskCard.style.transform = 'translateX(100%)';
+                taskCard.style.opacity = '0';
+                taskCard.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+            }
+            
+            fetch(`/api/tasks/skip/${taskId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Task skipped, generating a new one...', 'info');
+                    
+                    // Replace task with new one
+                    setTimeout(() => {
+                        location.reload(); // Simple reload for now
+                    }, 500);
+                } else {
+                    showToast('Error skipping task', 'error');
+                }
+            })
+            .catch(error => {
+                showToast('Network error occurred', 'error');
+            });
+        }
+        
+        function showConfidencePrompt(taskId, subtopics) {
+            // Create modal overlay
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            
+            // Create modal content
+            const modalContent = document.createElement('div');
+            modalContent.className = 'modal-content glass-card glass-noise';
+            
+            // Create modal header
+            const modalHeader = document.createElement('div');
+            modalHeader.innerHTML = `<h2 class="mb-2">Update Your Confidence</h2>
+                                    <p class="text-secondary mb-2">How confident do you feel about these subtopics?</p>`;
+            
+            // Create form
+            const form = document.createElement('form');
+            
+            // Add subtopics
+            subtopics.forEach(subtopic => {
+                const subtopicDiv = document.createElement('div');
+                subtopicDiv.className = 'mb-2';
+                
+                const subtopicHeader = document.createElement('div');
+                subtopicHeader.className = 'd-flex justify-between items-center';
+                
+                const title = document.createElement('h3');
+                title.textContent = subtopic.title;
+                
+                const priorityCheckbox = document.createElement('div');
+                priorityCheckbox.innerHTML = `
+                    <label class="d-flex items-center gap-1">
+                        <input type="checkbox" name="priority_${subtopic.id}" ${subtopic.priority ? 'checked' : ''}>
+                        <span>Priority</span>
+                    </label>
+                `;
+                
+                subtopicHeader.appendChild(title);
+                subtopicHeader.appendChild(priorityCheckbox);
+                subtopicDiv.appendChild(subtopicHeader);
+                
+                // Confidence selector
+                const confidenceSelector = document.createElement('div');
+                confidenceSelector.className = 'confidence-selector';
+                
+                for (let i = 1; i <= 5; i++) {
+                    const option = document.createElement('div');
+                    option.className = `confidence-option confidence-${i} ${i === subtopic.confidence ? 'selected' : ''}`;
+                    option.setAttribute('data-value', i);
+                    option.onclick = function() {
+                        // Remove selected class from all options
+                        confidenceSelector.querySelectorAll('.confidence-option').forEach(opt => {
+                            opt.classList.remove('selected');
+                        });
+                        // Add selected class to clicked option
+                        this.classList.add('selected');
+                        // Update hidden input
+                        document.getElementById(`confidence_${subtopic.id}`).value = this.getAttribute('data-value');
+                    };
+                    confidenceSelector.appendChild(option);
+                }
+                
+                subtopicDiv.appendChild(confidenceSelector);
+                
+                // Hidden input for form submission
+                const hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.id = `confidence_${subtopic.id}`;
+                hiddenInput.name = `confidence_${subtopic.id}`;
+                hiddenInput.value = subtopic.confidence;
+                subtopicDiv.appendChild(hiddenInput);
+                
+                form.appendChild(subtopicDiv);
+            });
+            
+            // Submit button
+            const submitBtn = document.createElement('button');
+            submitBtn.type = 'button';
+            submitBtn.className = 'btn btn-primary mt-2';
+            submitBtn.textContent = 'Save';
+            submitBtn.onclick = function() {
+                // Collect data
+                const data = {
+                    subtopics: {}
+                };
+                
+                subtopics.forEach(subtopic => {
+                    data.subtopics[subtopic.id] = {
+                        confidence: parseInt(document.getElementById(`confidence_${subtopic.id}`).value),
+                        priority: document.querySelector(`input[name="priority_${subtopic.id}"]`).checked
+                    };
+                });
+                
+                // Send to API
+                fetch('/api/subtopics/update_confidence', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        // Close modal
+                        document.body.removeChild(modal);
+                        // Refresh page to show updated task list
+                        location.reload();
+                    }
+                });
+            };
+            
+            form.appendChild(submitBtn);
+            modalContent.appendChild(modalHeader);
+            modalContent.appendChild(form);
+            modal.appendChild(modalContent);
+            
+            // Add active class after a short delay to trigger animation
+            document.body.appendChild(modal);
+            setTimeout(() => {
+                modal.classList.add('active');
+            }, 10);
+        }
+    </script>
+    
+{% block scripts %}{% endblock %}
+
+<script>
+    // Ensure proper scrolling behavior on all pages
+    document.addEventListener('DOMContentLoaded', function() {
+        // Use single scrollbar on the body only
+        document.documentElement.style.overflow = 'hidden';
+        document.documentElement.style.height = '100%';
+        document.body.style.overflowY = 'auto';
+        document.body.style.height = 'auto';
+        document.body.style.minHeight = '100vh';
+        
+        // Ensure content containers are scrollable
+        const container = document.querySelector('main.container');
+        if (container) {
+            container.style.overflow = 'visible';
+            container.style.height = 'auto';
+        }
+    });
+</script>
+</body>
+</html>

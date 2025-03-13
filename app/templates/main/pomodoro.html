@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Pomodoro Timer | Timetable{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pomodoro.css') }}">
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-between items-center mb-3">
+    <h1 class="page-title">Pomodoro Timer</h1>
+</div>
+
+<div class="pomodoro-container">
+    <div class="pomodoro-header">
+        <div class="pomodoro-title">
+            <i class="fas fa-clock"></i>
+            <span>Focus Timer</span>
+        </div>
+    </div>
+    
+    <div class="timer-display-container">
+        <div id="timer-display" class="timer-display">25:00</div>
+    </div>
+    
+    <div class="pomodoro-progress">
+        <div class="progress-track"></div>
+        <div class="progress-bar-container">
+            <div id="timer-progress-bar" class="progress-bar"></div>
+        </div>
+    </div>
+    
+    <div class="timer-controls">
+        <button id="start-timer" class="timer-btn start-btn">
+            <i class="fas fa-play"></i>
+            <span>Start</span>
+        </button>
+        <button id="pause-timer" class="timer-btn pause-btn">
+            <i class="fas fa-pause"></i>
+            <span>Pause</span>
+        </button>
+        <button id="reset-timer" class="timer-btn reset-btn">
+            <i class="fas fa-redo"></i>
+            <span>Reset</span>
+        </button>
+    </div>
+    
+    <div class="session-counter">
+        {% for i in range(4) %}
+            <div class="session-dot"></div>
+        {% endfor %}
+    </div>
+    
+    <div class="task-integration">
+        <div class="task-integration-header">
+            <div class="task-integration-title">Current Task</div>
+        </div>
+        <div class="task-select-container">
+            <select id="task-select" class="task-select">
+                <option value="none">-- Select a task --</option>
+                {% for task in active_tasks %}
+                    <option value="{{ task.id }}">{{ task.title }} ({{ task.total_duration }} min)</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    
+    <div class="timer-settings">
+        <div class="time-input-group">
+            <label for="pomodoro-minutes">Focus Time (min)</label>
+            <input type="number" id="pomodoro-minutes" class="time-input" value="25" min="1" max="60">
+        </div>
+        
+        <div class="time-input-group">
+            <label for="short-break-minutes">Short Break (min)</label>
+            <input type="number" id="short-break-minutes" class="time-input" value="5" min="1" max="30">
+        </div>
+        
+        <div class="time-input-group">
+            <label for="long-break-minutes">Long Break (min)</label>
+            <input type="number" id="long-break-minutes" class="time-input" value="15" min="1" max="60">
+        </div>
+        
+        <div class="time-input-group">
+            <label for="total-sessions">Sessions</label>
+            <input type="number" id="total-sessions" class="time-input" value="4" min="1" max="10">
+        </div>
+    </div>
+</div>
+
+<div class="glass-card">
+    <h2 class="mb-2">How to Use the Pomodoro Technique</h2>
+    <ol class="ml-4 mb-3">
+        <li class="mb-1">Select a task to focus on</li>
+        <li class="mb-1">Set the timer for 25 minutes (or your preferred focus time)</li>
+        <li class="mb-1">Work on the task until the timer rings</li>
+        <li class="mb-1">Take a short break (5 minutes)</li>
+        <li class="mb-1">After 4 pomodoros, take a longer break (15-30 minutes)</li>
+    </ol>
+    
+    <h3 class="mb-2">Benefits</h3>
+    <ul class="ml-4">
+        <li class="mb-1">Improves focus and concentration</li>
+        <li class="mb-1">Reduces mental fatigue</li>
+        <li class="mb-1">Increases productivity and motivation</li>
+        <li class="mb-1">Creates a sense of accomplishment</li>
+    </ul>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/pomodoro.js') }}"></script>
+
+<script>
+    // Create directory for sound files if not exists
+    document.addEventListener('DOMContentLoaded', function() {
+        // Fallback sound handling
+        const sounds = ['start', 'pause', 'complete'];
+        sounds.forEach(sound => {
+            const audioElement = document.createElement('audio');
+            audioElement.id = `${sound}-sound`;
+            audioElement.preload = 'auto';
+            
+            // Try loading MP3 or use fallback
+            audioElement.innerHTML = `
+                <source src="/static/sounds/${sound}.mp3" type="audio/mpeg">
+                <source src="https://assets.mixkit.co/sfx/preview/${getDefaultSoundId(sound)}.mp3" type="audio/mpeg">
+            `;
+            
+            document.body.appendChild(audioElement);
+        });
+        
+        // Get default sound IDs from mixkit.co for fallback
+        function getDefaultSoundId(soundType) {
+            switch(soundType) {
+                case 'start': return '1322'; // Positive notification
+                case 'pause': return '2869'; // Click sound
+                case 'complete': return '978'; // Achievement sound
+                default: return '1322';
+            }
+        }
+    });
+</script>
+{% endblock %}

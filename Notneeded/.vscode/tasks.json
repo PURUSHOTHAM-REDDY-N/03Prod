@@ -1,0 +1,40 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Validate Templates",
+            "type": "shell",
+            "command": "python app/utils/template_validator.py",
+            "problemMatcher": {
+                "owner": "template-validator",
+                "fileLocation": ["relative", "${workspaceFolder}"],
+                "pattern": {
+                    "regexp": "^Issues in ([^:]+):$\\s+- (.+)$\\s+Fix: (.+)$",
+                    "file": 1,
+                    "message": 2,
+                    "loop": true
+                }
+            },
+            "presentation": {
+                "reveal": "silent",
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Run Template Validator Tests",
+            "type": "shell",
+            "command": "python -m pytest tests/utils/test_template_validator.py -v",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        }
+    ]
+}

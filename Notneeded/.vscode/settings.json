@@ -1,0 +1,25 @@
+{
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": true
+    },
+    "python.linting.enabled": true,
+    "python.linting.flake8Enabled": true,
+    "python.linting.flake8Args": [
+        "--max-line-length=100"
+    ],
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.nosetestsEnabled": false,
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "html.validate.scripts": true,
+    "html.validate.styles": true,
+    "javascript.validate.enable": true,
+    "javascript.format.enable": true,
+    "files.associations": {
+        "*.html": "html"
+    },
+    "problems.decorations.enabled": true
+}
