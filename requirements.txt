@@ -3,8 +3,8 @@ flask-sqlalchemy==3.1.1
 sqlalchemy>=2.0.28
 flask-migrate==4.0.5
 flask-login==0.6.3
-# Commented out PostgreSQL for local development (using SQLite instead)
-# psycopg2-binary==2.9.9
+# PostgreSQL for production deployment
+psycopg2-binary==2.9.9
 python-dotenv==1.0.0
 flask-wtf==1.2.1
 email-validator==2.1.0
@@ -19,3 +19,5 @@ click==8.1.7
 itsdangerous==2.1.2
 jinja2==3.1.3
 markupsafe==2.1.3
+# Deployment dependencies
+gunicorn==21.2.0
