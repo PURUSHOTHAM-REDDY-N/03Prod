@@ -8,7 +8,14 @@ from app.utils.curriculum_importer import import_curriculum_data as import_jsonc
 load_dotenv()
 
 # Create app with appropriate config
-env = os.environ.get('FLASK_ENV', 'development')
+# For Railway deployment, force production environment if RAILWAY_ENVIRONMENT exists
+if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('RAILWAY_SERVICE_ID'):
+    print("Detected Railway environment, forcing production mode")
+    env = 'production'
+else:
+    env = os.environ.get('FLASK_ENV', 'development')
+    
+print(f"Using environment: {env}")
 app = create_app(env)
 
 @app.cli.command('init-db')

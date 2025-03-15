@@ -28,15 +28,26 @@ class ProductionConfig(Config):
     """Production configuration using Railway database."""
     DEBUG = False
     TESTING = False
-    # Use Railway database with pg8000 driver
-    database_url = os.environ.get('DATABASE_URL', '')
+    
+    # Database configuration with fallback
+    database_url = os.environ.get('DATABASE_URL')
+    
+    # Log the available environment variables for debugging
+    print(f"Environment variables: {list(os.environ.keys())}")
+    print(f"DATABASE_URL: {database_url}")
+    
     if database_url:
-        # Parse the URL to extract components
+        # Format the URL for pg8000 driver
         if database_url.startswith('postgres://'):
             database_url = database_url.replace('postgres://', 'postgresql+pg8000://', 1)
         elif database_url.startswith('postgresql://'):
             database_url = database_url.replace('postgresql://', 'postgresql+pg8000://', 1)
-    SQLALCHEMY_DATABASE_URI = database_url
+        SQLALCHEMY_DATABASE_URI = database_url
+        print(f"Using database URL: {database_url}")
+    else:
+        # Fallback to SQLite if no DATABASE_URL is provided
+        print("No DATABASE_URL found, falling back to SQLite")
+        SQLALCHEMY_DATABASE_URI = 'sqlite:///app.db'
 
 # Configuration dictionary to easily access different configs
 config = {
