@@ -29,7 +29,11 @@ class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
     # Use Railway database
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
+    # Convert postgres:// to postgresql:// if needed for SQLAlchemy compatibility
+    database_url = os.environ.get('DATABASE_URL', '')
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    SQLALCHEMY_DATABASE_URI = database_url
 
 # Configuration dictionary to easily access different configs
 config = {
