@@ -83,7 +83,6 @@ class Task(db.Model):
     due_date = db.Column(db.Date, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
     skipped_at = db.Column(db.DateTime, nullable=True)
-    confidence_prompt_shown = db.Column(db.Boolean, default=False)
     
     # Relationships
     subject = db.relationship('Subject', back_populates='tasks')
@@ -105,20 +104,6 @@ class Task(db.Model):
     def mark_completed(self):
         """Mark the task as completed."""
         self.completed_at = datetime.utcnow()
-        
-        # Update last_addressed_date for all subtopics in this task
-        for task_subtopic in self.subtopics:
-            # Import here to avoid circular imports
-            from app.models.confidence import SubtopicConfidence
-            
-            subtopic_confidence = SubtopicConfidence.query.filter_by(
-                user_id=self.user_id,
-                subtopic_id=task_subtopic.subtopic_id
-            ).first()
-            
-            if subtopic_confidence:
-                subtopic_confidence.mark_addressed()
-        
         db.session.commit()
     
     def mark_skipped(self):
@@ -145,23 +130,14 @@ class Task(db.Model):
         self.total_duration = total if total > 0 else 30
         db.session.commit()
     
-    def get_prioritized_subtopics(self):
-        """Get any prioritized subtopics in this task."""
+    def get_subtopics(self):
+        """Get all subtopics in this task."""
         result = []
         
         for task_subtopic in self.subtopics:
-            # Import here to avoid circular imports
-            from app.models.confidence import SubtopicConfidence
             from app.models.curriculum import Subtopic
-            
             subtopic = Subtopic.query.get(task_subtopic.subtopic_id)
-            
-            subtopic_confidence = SubtopicConfidence.query.filter_by(
-                user_id=self.user_id,
-                subtopic_id=task_subtopic.subtopic_id
-            ).first()
-            
-            if subtopic_confidence and subtopic_confidence.priority:
+            if subtopic:
                 result.append(subtopic)
         
         return result

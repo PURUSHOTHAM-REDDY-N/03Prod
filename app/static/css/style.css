@@ -491,10 +491,28 @@ header {
 }
 
 /* Task Cards */
+.task-container {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+}
+
 .task-card {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+.pomodoro-button {
+  background-color: var(--info-color, #2196F3);
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.pomodoro-button:hover {
+  background-color: var(--info-color, #2196F3);
+  opacity: 0.9;
+  transform: translateY(-2px);
 }
 
 .task-header {

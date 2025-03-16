@@ -22,14 +22,14 @@ from app.utils.task_subtopic_utils import add_subtopics_to_task
 
 def generate_task_for_subject(user, subject_id):
     """
-    Generate a study task for a subject based on confidence levels.
+    Generate a study task for a subject.
     
     The process:
     1. Get the subject and available task types
     2. Check if Uplearn is enabled for this subject
-    3. Select a topic weighted by confidence levels
+    3. Select a topic randomly from the available topics
     4. Create the task with appropriate task type
-    5. Add subtopics to the task, prioritizing those needing attention
+    5. Add subtopics to the task
     
     Args:
         user: User object to generate task for
@@ -42,9 +42,6 @@ def generate_task_for_subject(user, subject_id):
     subject = Subject.query.get(subject_id)
     if not subject:
         return None
-    
-    # Get subject code for confidence keys
-    subject_code = subject.get_subject_code()
     
     # Check if Uplearn is enabled for this subject
     uplearn_only = user.is_uplearn_enabled_for_subject(subject_id)
@@ -73,28 +70,49 @@ def generate_task_for_subject(user, subject_id):
     task_type = random.choice(task_types)
     
     # Get all topics for this subject
+    from flask import current_app
+    
     if "Psychology" in subject.title:
         # Special handling for Psychology's nested structure
-        # Get the paper topics (Paper 1, Paper 2, Paper 3)
-        paper_topics = get_topics_for_subject(subject_id)
-        
-        # Select a paper topic weighted by confidence
-        selected_paper = select_weighted_topic(paper_topics, user, subject_code)
-        
-        if not selected_paper:
+        try:
+            # Get the paper topics (Paper 1, Paper 2, Paper 3)
+            paper_topics = get_topics_for_subject(subject_id)
+            
+            if not paper_topics:
+                current_app.logger.error(f"No paper topics found for Psychology subject ID {subject_id}")
+                return None
+            
+            # Select a paper topic randomly
+            selected_paper = select_weighted_topic(paper_topics, user, subject.title)
+            
+            if not selected_paper:
+                current_app.logger.error(f"Failed to select a paper topic for Psychology subject ID {subject_id}")
+                return None
+            
+            # Get subtopic categories under this paper
+            subtopic_categories = get_subtopic_categories(selected_paper.id)
+            
+            if not subtopic_categories:
+                current_app.logger.error(f"No subtopic categories found for Psychology paper topic ID {selected_paper.id}")
+                # Fall back to using the paper topic directly if no subtopics exist
+                selected_topic = selected_paper
+            else:
+                # Select a subtopic category randomly
+                selected_topic = select_weighted_topic(subtopic_categories, user, subject.title)
+                
+                if not selected_topic:
+                    current_app.logger.error(f"Failed to select a subtopic category for Psychology paper topic ID {selected_paper.id}")
+                    # Fall back to using the paper topic
+                    selected_topic = selected_paper
+        except Exception as e:
+            current_app.logger.error(f"Error processing Psychology subject: {str(e)}")
             return None
-        
-        # Get subtopic categories under this paper
-        subtopic_categories = get_subtopic_categories(selected_paper.id)
-        
-        # Select a subtopic category weighted by confidence
-        selected_topic = select_weighted_topic(subtopic_categories, user, subject_code)
     else:
         # Normal subject structure
         topics = get_topics_for_subject(subject_id)
         
-        # Select a topic weighted by confidence
-        selected_topic = select_weighted_topic(topics, user, subject_code)
+        # Select a topic randomly
+        selected_topic = select_weighted_topic(topics, user, subject.title)
     
     if not selected_topic:
         return None

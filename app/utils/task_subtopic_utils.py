@@ -1,28 +1,51 @@
 """
 Subtopic utilities for task generation.
-Handles subtopic selection, prioritization and task subtopic management.
+Handles subtopic selection and task subtopic management.
 """
 
 from app import db
-from app.models.confidence import SubtopicConfidence
 from app.models.task import TaskSubtopic
 
-def add_subtopics_to_task(task, parent_topic, user, max_duration=30):
+def add_subtopics_to_task(task, parent_topic, user, max_duration=None):
     """
-    Add subtopics to a task, prioritizing those that need attention.
-    Subtopics with priority=True and not recently addressed are added first.
-    Remaining time is filled with weighted selection based on confidence.
+    Add subtopics to a task based on estimated duration and confidence levels.
+    Prioritizes subtopics with lower confidence levels using the (7 - confidence_level)² formula.
+    Respects user's study_hours_per_day and weekend_study_hours preferences.
     
     Args:
         task: Task object to add subtopics to
         parent_topic: Topic object containing subtopics
-        user: User object for confidence lookup
-        max_duration: Maximum duration (in minutes) for the combined subtopics
+        user: User object
+        max_duration: Maximum duration (in minutes) for the combined subtopics.
+                     If None, uses the user's study hours preference.
         
     Returns:
         The updated task object with subtopics added.
     """
+    # Determine appropriate max duration based on user preferences
+    if max_duration is None:
+        from datetime import datetime, timedelta
+        
+        # Check if today is a weekend (5=Saturday, 6=Sunday)
+        today = datetime.utcnow().date()
+        is_weekend = today.weekday() >= 5
+        
+        # Convert hours to minutes
+        if is_weekend and hasattr(user, 'weekend_study_hours'):
+            # Use weekend study hours if it's a weekend
+            hours = user.weekend_study_hours
+        elif hasattr(user, 'study_hours_per_day'):
+            # Use weekday study hours
+            hours = user.study_hours_per_day
+        else:
+            # Default if user preferences aren't set
+            hours = 2.0 if not is_weekend else 3.0
+        
+        # Convert hours to minutes and cap between 15-120 minutes
+        max_duration = min(max(int(hours * 60 * 0.5), 15), 120)
     from app.models.curriculum import Subtopic
+    from app.models.confidence import SubtopicConfidence
+    import random
     
     # Get all subtopics for this topic
     subtopics = Subtopic.query.filter_by(topic_id=parent_topic.id).all()
@@ -30,39 +53,51 @@ def add_subtopics_to_task(task, parent_topic, user, max_duration=30):
     if not subtopics:
         return task
     
-    # Identify prioritized subtopics needing attention
-    prioritized_subtopics = []
-    normal_subtopics = []
-    
-    for subtopic in subtopics:
-        subtopic_key = subtopic.generate_subtopic_key()
+    try:
+        # Get subtopic IDs for confidence query
+        subtopic_ids = [s.id for s in subtopics]
         
-        # Get confidence for this subtopic
-        confidence = SubtopicConfidence.query.filter_by(
-            user_id=user.id,
-            subtopic_id=subtopic.id,
-            subtopic_key=subtopic_key
-        ).first()
+        # Query confidence data for all subtopics at once
+        confidence_data = SubtopicConfidence.query.filter(
+            SubtopicConfidence.user_id == user.id,
+            SubtopicConfidence.subtopic_id.in_(subtopic_ids)
+        ).all()
         
-        if confidence and confidence.priority and confidence.needs_attention():
-            prioritized_subtopics.append((subtopic, confidence))
-        else:
-            # Default confidence level if none exists
-            confidence_level = confidence.confidence_level if confidence else 3
+        # Create dictionary for quick lookup
+        confidence_dict = {conf.subtopic_id: conf.confidence_level for conf in confidence_data}
+        
+        # Apply weighting formula (7 - confidence_level)²
+        # Higher weight = higher priority for selection
+        weighted_subtopics = []
+        
+        for subtopic in subtopics:
+            # Get confidence level (default to 3 if not found - 50% confidence)
+            confidence_level = confidence_dict.get(subtopic.id, 3)
             
-            # Weight calculation with priority multiplier
+            # Apply formula: (7 - confidence_level)²
+            # This gives higher weights to subtopics with lower confidence
             weight = (7 - confidence_level) ** 2
-            if confidence and confidence.priority:
-                weight *= 1.5
             
-            normal_subtopics.append((subtopic, weight))
+            weighted_subtopics.append((subtopic, weight))
+        
+        # Sort by weight (descending) to prioritize low-confidence subtopics
+        weighted_subtopics.sort(key=lambda x: x[1], reverse=True)
+        
+        # Extract just the subtopics in their weighted order
+        subtopics = [s for s, _ in weighted_subtopics]
+        
+    except Exception as e:
+        # Log the error but don't crash - fall back to random selection
+        from flask import current_app
+        current_app.logger.error(f"Error in subtopic selection: {str(e)}")
+        random.shuffle(subtopics)
     
-    # Add prioritized subtopics first
+    # Add subtopics until we reach the max duration
     remaining_duration = max_duration
     added_subtopics = []
     
-    for subtopic, _ in prioritized_subtopics:
-        if remaining_duration >= subtopic.estimated_duration:
+    for subtopic in subtopics:
+        if remaining_duration >= subtopic.estimated_duration and subtopic.title not in added_subtopics:
             task_subtopic = TaskSubtopic(
                 task_id=task.id,
                 subtopic_id=subtopic.id,
@@ -72,47 +107,29 @@ def add_subtopics_to_task(task, parent_topic, user, max_duration=30):
             
             remaining_duration -= subtopic.estimated_duration
             added_subtopics.append(subtopic.title)
-    
-    # Fill remaining time with weighted selection
-    if remaining_duration > 0 and normal_subtopics:
-        # Sort by weight for weighted selection
-        normal_subtopics.sort(key=lambda x: x[1], reverse=True)
-        
-        for subtopic, _ in normal_subtopics:
-            if remaining_duration >= subtopic.estimated_duration and subtopic.title not in added_subtopics:
-                task_subtopic = TaskSubtopic(
-                    task_id=task.id,
-                    subtopic_id=subtopic.id,
-                    duration=subtopic.estimated_duration
-                )
-                db.session.add(task_subtopic)
-                
-                remaining_duration -= subtopic.estimated_duration
-                added_subtopics.append(subtopic.title)
-                
-                # Stop if we've reached the target duration
-                if remaining_duration < 15:  # Minimum subtopic duration
-                    break
+            
+            # Stop if we've reached the target duration
+            if remaining_duration < 15:  # Minimum subtopic duration
+                break
     
     # Commit changes
     db.session.commit()
     
     # Update task description with subtopics
-    update_task_description_with_subtopics(task, added_subtopics, prioritized_subtopics)
+    update_task_description_with_subtopics(task, added_subtopics)
     
     # Update total duration
     task.update_total_duration()
     
     return task
 
-def update_task_description_with_subtopics(task, added_subtopics, prioritized_subtopics):
+def update_task_description_with_subtopics(task, added_subtopics):
     """
-    Update a task's description to include the list of subtopics and highlight priorities.
+    Update a task's description to include the list of subtopics.
     
     Args:
         task: Task object to update
         added_subtopics: List of subtopic titles that were added to the task
-        prioritized_subtopics: List of (subtopic, confidence) tuples that are prioritized
         
     Returns:
         None (updates task in place)
@@ -124,28 +141,17 @@ def update_task_description_with_subtopics(task, added_subtopics, prioritized_su
     task_description = task.description or ""
     subtopics_list = ", ".join(added_subtopics)
     
-    # Check if there are prioritized subtopics in this task
-    prioritized_titles = [subtopic.title for subtopic, _ in prioritized_subtopics 
-                        if subtopic.title in added_subtopics]
-    
-    if prioritized_titles:
-        priority_text = f"\n\nThis task includes prioritized subtopics: {', '.join(prioritized_titles)}"
-        task_description += priority_text
-    
     # Update task description
     task.description = f"{task_description}\n\nSubtopics: {subtopics_list}"
     db.session.commit()
 
-def get_subtopics_by_confidence(user, topic_id=None, min_confidence=None, max_confidence=None, prioritized_only=False):
+def get_subtopics_by_topic(user, topic_id=None):
     """
-    Get subtopics filtered by confidence levels and prioritization.
+    Get subtopics for a specific topic or all subtopics.
     
     Args:
         user: User object to get subtopics for
         topic_id: Optional topic ID to filter subtopics by
-        min_confidence: Minimum confidence level (inclusive)
-        max_confidence: Maximum confidence level (inclusive)
-        prioritized_only: Whether to only include prioritized subtopics
         
     Returns:
         List of subtopics matching the criteria
@@ -162,44 +168,4 @@ def get_subtopics_by_confidence(user, topic_id=None, min_confidence=None, max_co
     # Get all subtopics that match the base criteria
     subtopics = query.all()
     
-    # If no confidence filtering is needed, return all subtopics
-    if min_confidence is None and max_confidence is None and not prioritized_only:
-        return subtopics
-    
-    # Get confidence data for the subtopics
-    subtopic_ids = [s.id for s in subtopics]
-    
-    # No subtopics found
-    if not subtopic_ids:
-        return []
-    
-    confidences = SubtopicConfidence.query.filter(
-        SubtopicConfidence.user_id == user.id,
-        SubtopicConfidence.subtopic_id.in_(subtopic_ids)
-    ).all()
-    
-    # Create a map of subtopic_id to confidence
-    confidence_map = {c.subtopic_id: c for c in confidences}
-    
-    # Filter subtopics based on confidence criteria
-    result = []
-    for subtopic in subtopics:
-        confidence = confidence_map.get(subtopic.id)
-        
-        # Skip if we need prioritized only and this isn't prioritized
-        if prioritized_only and (not confidence or not confidence.priority):
-            continue
-        
-        # Skip if confidence is below minimum
-        if min_confidence is not None and (not confidence or confidence.confidence_level < min_confidence):
-            continue
-        
-        # Skip if confidence is above maximum
-        if max_confidence is not None and (not confidence or confidence.confidence_level > max_confidence):
-            continue
-        
-        # Add confidence data to subtopic
-        subtopic.confidence = confidence
-        result.append(subtopic)
-    
-    return result
+    return subtopics

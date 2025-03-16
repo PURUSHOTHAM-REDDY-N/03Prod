@@ -3,10 +3,9 @@ from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 from app import db
 from app.models.curriculum import Subject, Topic, Subtopic
-from app.models.confidence import TopicConfidence, SubtopicConfidence
 from app.models.task import Task, TaskType, TaskTypePreference
 from app.utils.task_generator import generate_task_for_subject, get_subject_distribution_for_week
-from app.utils.analytics_utils import prepare_analytics_data, get_chart_data_for_dashboard, ConfidenceAnalytics
+from app.utils.analytics_utils import prepare_analytics_data, get_chart_data_for_dashboard
 from app.utils.optimization_utils import get_optimized_subject_distribution, generate_tasks_in_batch
 import os
 
@@ -64,19 +63,10 @@ def index():
             print(f"Exception while generating tasks: {str(e)}")
             active_tasks = []
     
-    # Get some basic analytics for dashboard insights
-    analytics = ConfidenceAnalytics(current_user.id)
-    recommendations = analytics.get_priority_recommendations(limit=3)
-    
-    # Get confidence stats
-    confidence_stats = analytics.get_confidence_stats(days=7)  # Last week
-    
     return render_template('main/index.html', 
                            active_tasks=active_tasks,
                            completed_tasks=completed_tasks,
-                           current_date=today,
-                           recommendations=recommendations,
-                           confidence_stats=confidence_stats)
+                           current_date=today)
 
 @main_bp.route('/calendar')
 @login_required
@@ -116,7 +106,7 @@ def calendar():
 @main_bp.route('/curriculum')
 @login_required
 def curriculum():
-    """Browse curriculum structure with confidence levels."""
+    """Browse curriculum structure."""
     # Redirect to the curriculum blueprint
     return redirect(url_for('curriculum.view_curriculum'))
 

@@ -7,12 +7,6 @@ from app.utils.task_generator import (
     get_subject_distribution_for_week
 )
 
-from app.utils.confidence_utils import (
-    update_topic_confidence,
-    update_subtopic_confidence,
-    get_subtopic_confidences_for_task
-)
-
 from app.utils.database_helpers import (
     get_subject_code,
     generate_topic_key,

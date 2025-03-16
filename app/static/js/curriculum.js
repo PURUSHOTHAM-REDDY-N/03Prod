@@ -11,34 +11,36 @@ document.addEventListener('DOMContentLoaded', function() {
   let currentSubjectId = null;
   let currentTopicId = null;
   
-  // Cache for user data
-  const userConfidence = {};
-  const userPriorities = {};
-  const topicConfidence = {};
-  const topicPriorities = {};
+  // Cache for confidence data
+  const confidenceCache = {
+    subtopics: {},
+    topics: {}
+  };
   
   // Initialize the curriculum browser
   initialize();
   
   function initialize() {
-    // Load user's confidence data first, then load subjects
-    loadUserConfidence()
+    // Load all confidence data first
+    loadAllConfidenceData()
       .then(() => {
-        // Load subjects and their topics/subtopics
+        // Then load subjects and their topics/subtopics
         loadSubjects();
         
         // Set up search functionality
         setupSearch();
       })
       .catch(error => {
-        console.error('Error during initialization:', error);
+        console.error('Error initializing confidence data:', error);
+        // Continue with loading subjects even if confidence data fails
+        loadSubjects();
+        setupSearch();
       });
   }
   
-  // Load user's confidence data - returns a promise for better sequencing
-  function loadUserConfidence() {
-    console.log('Loading user confidence data...');
-    return fetch('/curriculum/api/user/confidence')
+  // Load all confidence data
+  function loadAllConfidenceData() {
+    return fetch('/api/confidence/user/data')
       .then(response => {
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
@@ -46,36 +48,27 @@ document.addEventListener('DOMContentLoaded', function() {
         return response.json();
       })
       .then(data => {
-        console.log('Received confidence data:', data);
-        
-        // Clear existing caches
-        Object.keys(userConfidence).forEach(key => delete userConfidence[key]);
-        Object.keys(userPriorities).forEach(key => delete userPriorities[key]);
-        Object.keys(topicConfidence).forEach(key => delete topicConfidence[key]);
-        Object.keys(topicPriorities).forEach(key => delete topicPriorities[key]);
-        
-        // Store subtopic confidence data
-        if (data.confidences) {
-          data.confidences.forEach(item => {
-            userConfidence[item.subtopic_id] = item.level;
-            userPriorities[item.subtopic_id] = item.priority;
+        // Cache subtopic confidence
+        if (data.subtopic_confidences) {
+          data.subtopic_confidences.forEach(item => {
+            confidenceCache.subtopics[item.subtopic_id] = item.confidence_level;
           });
         }
         
-        // Store topic confidence data
+        // Cache topic confidence
         if (data.topic_confidences) {
           data.topic_confidences.forEach(item => {
-            topicConfidence[item.topic_id] = item.level;
-            topicPriorities[item.topic_id] = item.priority;
+            confidenceCache.topics[item.topic_id] = item.confidence_percent;
           });
         }
         
         console.log('Confidence data loaded and cached');
-        return data; // Return data for chaining
+        return confidenceCache;
       })
       .catch(error => {
-        console.error('Error loading user confidence data:', error);
-        throw error; // Re-throw to allow handling by caller
+        console.error('Error loading confidence data:', error);
+        // Initialize confidence cache with defaults if loading fails
+        return confidenceCache;
       });
   }
   
@@ -162,36 +155,32 @@ document.addEventListener('DOMContentLoaded', function() {
             topicElement.className = 'topic-item';
             topicElement.dataset.id = topic.id;
             
-            // Get confidence level from API or cached value
-            const cachedConfidence = topicConfidence[topic.id];
-            const confidenceLevel = topic.confidence_level || cachedConfidence || 50;
-            const isPriority = topic.priority || false;
+            // Get topic confidence from cache or default to 50%
+            const topicConfidence = confidenceCache.topics[topic.id] || 50;
             
-            // Store the confidence value back in the cache
-            topicConfidence[topic.id] = confidenceLevel;
+            // Determine the confidence color class
+            const confidenceColorClass = getConfidenceColorClass(topicConfidence);
             
-            // Create the HTML structure
+            // Create the HTML structure with topic confidence bar
             topicElement.innerHTML = `
               <div class="topic-header">
                 <span class="topic-title">${topic.title}</span>
                 <span class="topic-count">${topic.subtopics_count} subtopics</span>
               </div>
               <p class="topic-description">${topic.description || ''}</p>
-              <div class="topic-confidence">
-                <div class="confidence-value">${confidenceLevel}%</div>
-                <div class="confidence-bar-container">
-                  <div class="confidence-bar" data-level="${confidenceLevel}"></div>
+              <div class="topic-confidence-container">
+                <div class="topic-confidence-label">
+                  <span>Topic Confidence</span>
+                  <span class="topic-confidence-value">${Math.round(topicConfidence)}</span>%
+                </div>
+                <div class="topic-confidence-bar-container">
+                  <div class="topic-confidence-bar ${confidenceColorClass}" style="width: ${topicConfidence}%"></div>
                 </div>
               </div>
               <div class="topic-subtopics-container" data-topic-id="${topic.id}"></div>
             `;
             
             topicsContainer.appendChild(topicElement);
-            
-            // Initialize confidence bar with a slight delay to ensure styles are applied
-            setTimeout(() => {
-              updateConfidenceBar(topicElement, confidenceLevel);
-            }, 50);
             
             // Queue this topic's subtopics to load
             topicPromises.push(loadSubtopicsForTopic(topic.id));
@@ -252,33 +241,27 @@ document.addEventListener('DOMContentLoaded', function() {
             subtopicElement.dataset.id = subtopic.id;
             subtopicElement.dataset.topicId = topicId;
             
-            // Get user's confidence or default to 3 (middle value)
-            const cachedConfidence = userConfidence[subtopic.id];
-            const confidenceLevel = subtopic.confidence_level || cachedConfidence || 3;
-            const isPriority = subtopic.priority || false;
-            
-            // Store in cache
-            userConfidence[subtopic.id] = confidenceLevel;
-            userPriorities[subtopic.id] = isPriority;
-            
-            // Create confidence indicators
-            let confidenceHtml = '<div class="confidence-selector">';
-            for (let i = 1; i <= 5; i++) {
-              confidenceHtml += `<span class="confidence-option confidence-${i} ${i <= confidenceLevel ? 'selected' : ''}" data-level="${i}"></span>`;
-            }
-            confidenceHtml += '</div>';
+            // Get confidence level for this subtopic (default to 3)
+            const confidenceLevel = confidenceCache.subtopics[subtopic.id] || 3;
             
             subtopicElement.innerHTML = `
               <div class="subtopic-header">
                 <span class="subtopic-title">${subtopic.title}</span>
-                <button class="priority-toggle ${isPriority ? 'active' : ''}" title="Toggle Priority">
-                  <i class="fas fa-star"></i>
-                </button>
               </div>
               <p class="subtopic-description">${subtopic.description || ''}</p>
-              <p class="confidence-label">Confidence: ${confidenceLevel}/5</p>
-              ${confidenceHtml}
               <p class="estimated-duration">Estimated Duration: ${subtopic.estimated_duration || 15} min</p>
+              
+              <!-- Confidence selector -->
+              <div class="subtopic-confidence-container">
+                <span class="confidence-label">Confidence: <span class="confidence-value">${confidenceLevel}</span>/5</span>
+                <div class="confidence-buttons" data-subtopic-id="${subtopic.id}">
+                  <button class="confidence-btn" data-level="1" title="Very Low Confidence" ${confidenceLevel === 1 ? 'aria-selected="true"' : ''}></button>
+                  <button class="confidence-btn" data-level="2" title="Low Confidence" ${confidenceLevel === 2 ? 'aria-selected="true"' : ''}></button>
+                  <button class="confidence-btn" data-level="3" title="Medium Confidence" ${confidenceLevel === 3 ? 'aria-selected="true"' : ''}></button>
+                  <button class="confidence-btn" data-level="4" title="High Confidence" ${confidenceLevel === 4 ? 'aria-selected="true"' : ''}></button>
+                  <button class="confidence-btn" data-level="5" title="Very High Confidence" ${confidenceLevel === 5 ? 'aria-selected="true"' : ''}></button>
+                </div>
+              </div>
             `;
             
             fragment.appendChild(subtopicElement);
@@ -287,14 +270,9 @@ document.addEventListener('DOMContentLoaded', function() {
           // Add all subtopics to the container
           container.appendChild(fragment);
           
-          // Add handlers for confidence selection
-          container.querySelectorAll('.confidence-option').forEach(option => {
-            option.addEventListener('click', handleConfidenceUpdate);
-          });
-          
-          // Add handlers for priority toggling
-          container.querySelectorAll('.priority-toggle').forEach(button => {
-            button.addEventListener('click', handlePriorityToggle);
+          // Add event listeners to confidence buttons
+          container.querySelectorAll('.confidence-buttons').forEach(buttonContainer => {
+            buttonContainer.addEventListener('click', handleConfidenceButtonClick);
           });
           
           return data.subtopics;
@@ -307,44 +285,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
   }
   
-  // Enhanced function to update confidence bar display
-  function updateConfidenceBar(topicElement, confidenceLevel) {
-    const confidenceBar = topicElement.querySelector('.confidence-bar');
-    const confidenceValue = topicElement.querySelector('.confidence-value');
-    
-    if (!confidenceBar || !confidenceValue) {
-      console.warn('Could not find confidence bar elements for update', topicElement);
-      return;
-    }
-    
-    console.log(`Updating confidence bar to ${confidenceLevel}%`);
-    
-    // Update the value display
-    confidenceValue.textContent = `${confidenceLevel}%`;
-    
-    // Reset width to 0 first for smooth animation when refreshing
-    confidenceBar.style.width = '0%';
-    
-    // Update the bar's data attribute 
-    confidenceBar.dataset.level = confidenceLevel;
-    
-    // Force a DOM reflow for smoother animation
-    void confidenceBar.offsetWidth;
-    
-    // Now animate to the proper width
-    requestAnimationFrame(() => {
-      confidenceBar.style.width = `${confidenceLevel}%`;
-      
-      // Apply or remove the 'complete' class based on confidence level
-      if (confidenceLevel === 100) {
-        confidenceBar.classList.add('complete');
-      } else {
-        confidenceBar.classList.remove('complete');
-      }
-    });
-  }
-  
-  // Topic click handler - now just shows/hides the associated subtopics
+  // Topic click handler - just shows/hides the associated subtopics
   function handleTopicClick(e) {
     const topicItem = e.currentTarget;
     const topicId = topicItem.dataset.id;
@@ -383,146 +324,114 @@ document.addEventListener('DOMContentLoaded', function() {
       currentSubtopicsContainer.appendChild(clone);
     });
     
-    // Re-attach event handlers to the cloned elements
-    currentSubtopicsContainer.querySelectorAll('.confidence-option').forEach(option => {
-      option.addEventListener('click', handleConfidenceUpdate);
-    });
-    
-    currentSubtopicsContainer.querySelectorAll('.priority-toggle').forEach(button => {
-      button.addEventListener('click', handlePriorityToggle);
+    // Add event listeners to confidence buttons in the cloned elements
+    currentSubtopicsContainer.querySelectorAll('.confidence-buttons').forEach(buttonContainer => {
+      buttonContainer.addEventListener('click', handleConfidenceButtonClick);
     });
   }
   
-  // Handle subtopic confidence updates
-  function handleConfidenceUpdate(e) {
-    try {
-      e.stopPropagation(); // Prevent triggering topic clicks when updating confidence
-      
-      const option = e.currentTarget;
-      const level = parseInt(option.dataset.level);
-      const subtopicItem = option.closest('.subtopic-item');
-      const subtopicId = subtopicItem.dataset.id;
-      
-      // Find which topic this subtopic belongs to
-      const currentTopicElement = document.querySelector('.topic-item.selected');
-      const topicId = currentTopicElement ? currentTopicElement.dataset.id : null;
-      
-      console.log('Handling confidence update:', { subtopicId, level, topicId });
+  // Handle confidence button click
+  function handleConfidenceButtonClick(e) {
+    if (!e.target.classList.contains('confidence-btn')) return;
     
-      // Update UI for confidence selector
-      subtopicItem.querySelectorAll('.confidence-option').forEach((opt, index) => {
-        if (index + 1 <= level) {
-          opt.classList.add('selected');
-        } else {
-          opt.classList.remove('selected');
-        }
+    const confidenceLevel = parseInt(e.target.dataset.level);
+    const buttonsContainer = e.currentTarget;
+    const subtopicId = buttonsContainer.dataset.subtopicId;
+    const subtopicElement = buttonsContainer.closest('.subtopic-item');
+    const topicId = subtopicElement.dataset.topicId;
+    
+    // Update visual state for all instances of this subtopic
+    document.querySelectorAll(`.confidence-buttons[data-subtopic-id="${subtopicId}"]`).forEach(container => {
+      // Remove selected state from all buttons
+      container.querySelectorAll('.confidence-btn').forEach(btn => {
+        btn.removeAttribute('aria-selected');
       });
       
-      subtopicItem.querySelector('.confidence-label').textContent = `Confidence: ${level}/5`;
+      // Select the clicked level button
+      container.querySelector(`.confidence-btn[data-level="${confidenceLevel}"]`).setAttribute('aria-selected', 'true');
       
-      // Update server
-      console.log(`Updating subtopic ${subtopicId} confidence to level ${level}, topic=${topicId}`);
-      
-      fetch(`/curriculum/api/subtopic/${subtopicId}/confidence`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ level: level })
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log('Subtopic confidence updated:', data);
-        
-        // Check if the response includes the updated topic data
-        if (data.success && data.topic) {
-          console.log('Updating topic directly from response data:', data.topic);
-          
-          // Get the updated confidence level (now 1-100)
-          const newConfidenceLevel = data.topic.confidence_level;
-          
-          // Find and update the topic confidence
-          const topicElement = document.querySelector(`.topic-item[data-id="${topicId}"]`);
-          if (topicElement) {
-            // Update the topic confidence bar
-            updateConfidenceBar(topicElement, newConfidenceLevel);
-          } else {
-            console.error('Topic element not found in DOM');
-          }
-        } else {
-          console.error('Topic data not found in API response or no topic ID');
-        }
-      })
-      .catch(error => {
-        console.error('Error updating confidence:', error);
-        showToast('Error updating confidence', 'error');
-      });
-      
-      // Update local cache
-      userConfidence[subtopicId] = level;
-    } catch (error) {
-      console.error('Error in handleConfidenceUpdate:', error);
-    }
+      // Update the text display
+      const valueElement = container.closest('.subtopic-confidence-container').querySelector('.confidence-value');
+      if (valueElement) {
+        valueElement.textContent = confidenceLevel;
+      }
+    });
+    
+    // Update in database and cache
+    updateSubtopicConfidence(subtopicId, confidenceLevel, topicId);
   }
   
-  // Handle priority toggle
-  function handlePriorityToggle(e) {
-    try {
-      e.preventDefault();
-      e.stopPropagation();
-      
-      const button = e.currentTarget;
-      const subtopicItem = button.closest('.subtopic-item');
-      const subtopicId = subtopicItem.dataset.id;
-      
-      // Find which topic this subtopic belongs to
-      const currentTopicElement = document.querySelector('.topic-item.selected');
-      const topicId = currentTopicElement ? currentTopicElement.dataset.id : null;
-      
-      console.log('Handling priority toggle:', { subtopicId, topicId });
+  // Update subtopic confidence
+  function updateSubtopicConfidence(subtopicId, confidenceLevel, topicId) {
+    // Update cache immediately for responsive UI
+    confidenceCache.subtopics[subtopicId] = confidenceLevel;
     
-      // Toggle button state visually
-      button.classList.toggle('active');
-    
-      // Update server
-      fetch(`/curriculum/api/subtopic/${subtopicId}/priority`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log('Subtopic priority updated:', data);
+    // Send update to server
+    fetch(`/api/confidence/user/subtopic/${subtopicId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ confidence_level: confidenceLevel })
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Failed to update confidence');
+      }
+      return response.json();
+    })
+    .then(data => {
+      // Update topic confidence if returned in response
+      if (data.topic_confidence) {
+        const topicConfidence = data.topic_confidence.confidence_percent;
+        confidenceCache.topics[topicId] = topicConfidence;
         
-        // Update local cache
-        if (data.success) {
-          userPriorities[subtopicId] = data.priority;
-          
-          // Check if the response includes the updated topic data
-          if (data.topic && topicId) {
-            console.log('Updating topic from priority toggle response:', data.topic);
-            
-            // Get the updated confidence level (now 1-100)
-            const newConfidenceLevel = data.topic.confidence_level;
-            
-            // Find and update the topic confidence
-            const topicElement = document.querySelector(`.topic-item[data-id="${topicId}"]`);
-            if (topicElement) {
-              // Update the topic confidence bar
-              updateConfidenceBar(topicElement, newConfidenceLevel);
-            }
-          }
-        }
-      })
-      .catch(error => {
-        console.error('Error toggling priority:', error);
-        // Revert UI change on error
-        button.classList.toggle('active');
+        // Update all instances of this topic's confidence bar
+        updateTopicConfidenceDisplay(topicId, topicConfidence);
+      }
+    })
+    .catch(error => {
+      console.error('Error updating confidence:', error);
+      // Could revert UI here if needed
+    });
+  }
+  
+  // Update topic confidence display
+  function updateTopicConfidenceDisplay(topicId, confidencePercent) {
+    // Find all topic elements with this ID
+    document.querySelectorAll(`.topic-item[data-id="${topicId}"]`).forEach(topicElement => {
+      const confidenceBar = topicElement.querySelector('.topic-confidence-bar');
+      const confidenceValue = topicElement.querySelector('.topic-confidence-value');
+      
+      if (!confidenceBar || !confidenceValue) return;
+      
+      // Update the value text
+      confidenceValue.textContent = Math.round(confidencePercent);
+      
+      // Update color class
+      confidenceBar.className = 'topic-confidence-bar ' + getConfidenceColorClass(confidencePercent);
+      
+      // Animate width change - first reset to 0 for better animation
+      confidenceBar.style.width = '0%';
+      
+      // Force a reflow to ensure animation works
+      void confidenceBar.offsetWidth;
+      
+      // Set new width
+      requestAnimationFrame(() => {
+        confidenceBar.style.width = `${confidencePercent}%`;
       });
-    } catch (error) {
-      console.error('Error in handlePriorityToggle:', error);
-    }
+    });
+  }
+  
+  // Get color class based on confidence percentage
+  function getConfidenceColorClass(confidencePercent) {
+    if (confidencePercent >= 100) return 'confidence-100';
+    if (confidencePercent >= 80) return 'confidence-80-100';
+    if (confidencePercent >= 60) return 'confidence-60-80';
+    if (confidencePercent >= 40) return 'confidence-40-60';
+    if (confidencePercent >= 20) return 'confidence-20-40';
+    return 'confidence-0-20';
   }
   
   // Set up search functionality

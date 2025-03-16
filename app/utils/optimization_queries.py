@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from sqlalchemy import text, func
 from app import db
 from app.models.curriculum import Subject, Topic, Subtopic
-from app.models.confidence import TopicConfidence, SubtopicConfidence
 from app.utils.optimization_cache import cached
 
 @cached(timeout_seconds=3600)  # Cache for 1 hour
@@ -49,7 +48,7 @@ def get_optimized_subject_distribution(user_id):
     counts_dict = {row[0]: row[1] for row in task_counts}
     total_tasks = sum(counts_dict.values())
     
-    # Special handling for Biology subjects
+    # Special handling for Biology subjects - count them as one subject for distribution
     biology_subjects = [s for s in subjects if "Biology" in s.title]
     non_biology_subjects = [s for s in subjects if "Biology" not in s.title]
     
@@ -58,24 +57,27 @@ def get_optimized_subject_distribution(user_id):
     
     # Handle no previous tasks case
     if total_tasks == 0:
-        # Equal distribution with safety check
-        equal_share = 1.0 / len(subjects) if subjects else 0
+        # Calculate equal share based on *effective* number of subjects
+        # Biology (Y12 and Y13) count as ONE subject for this calculation
+        effective_subject_count = len(non_biology_subjects) + (1 if biology_subjects else 0)
+        equal_share = 1.0 / effective_subject_count if effective_subject_count > 0 else 0
         
         # Handle Biology as one subject for distribution
         if biology_subjects:
+            # Biology as a whole gets the same share as any other single subject
             biology_share = equal_share
             
             # Get topic counts with a single query
             if len(biology_subjects) > 1:
                 # Multiple biology subjects
+                subject_ids_str = ','.join(str(s.id) for s in biology_subjects)
                 bio_topic_counts = db.session.execute(
-                    text("""
+                    text(f"""
                     SELECT subject_id, COUNT(*) as count
                     FROM topics
-                    WHERE subject_id IN :subject_ids
+                    WHERE subject_id IN ({subject_ids_str})
                     GROUP BY subject_id
-                    """),
-                    {"subject_ids": tuple(s.id for s in biology_subjects)}
+                    """)
                 ).all()
             elif len(biology_subjects) == 1:
                 # Single biology subject - don't use IN clause
@@ -126,14 +128,14 @@ def get_optimized_subject_distribution(user_id):
             # Get topic counts for Biology subjects
             if len(biology_subject_ids) > 1:
                 # Multiple biology subjects
+                subject_ids_str = ','.join(str(s_id) for s_id in biology_subject_ids)
                 bio_topic_counts = db.session.execute(
-                    text("""
+                    text(f"""
                     SELECT subject_id, COUNT(*) as count
                     FROM topics
-                    WHERE subject_id IN :subject_ids
+                    WHERE subject_id IN ({subject_ids_str})
                     GROUP BY subject_id
-                    """),
-                    {"subject_ids": tuple(biology_subject_ids)}
+                    """)
                 ).all()
             elif len(biology_subject_ids) == 1:
                 # Single biology subject - don't use IN clause
@@ -174,24 +176,32 @@ def get_optimized_subject_distribution(user_id):
             for subject_id, value in inverse_frequency.items():
                 distribution[subject_id] = value / total_inverse
         else:
-            # Fallback to equal distribution with safety check
-            for subject in subjects:
-                distribution[subject.id] = 1.0 / len(subjects) if len(subjects) > 0 else 0
+            # Fallback to equal distribution with safety check - use effective subject count
+            effective_subject_count = len(non_biology_subjects) + (1 if biology_subjects else 0)
+            equal_share = 1.0 / effective_subject_count if effective_subject_count > 0 else 0
+            
+            # Biology shares one equal portion
+            if biology_subjects:
+                for subject in biology_subjects:
+                    distribution[subject.id] = equal_share / len(biology_subjects)
+            
+            # Other subjects get one equal portion each
+            for subject in non_biology_subjects:
+                distribution[subject.id] = equal_share
     
     return distribution
 
-def optimize_topic_query(subject_id=None, user_id=None, limit=None):
+def optimize_topic_query(subject_id=None, limit=None):
     """
-    Optimized query for topics with confidence data included.
+    Optimized query for topics.
     Reduces the number of database roundtrips for large datasets.
     
     Args:
         subject_id: Optional filter by subject ID
-        user_id: Optional user ID to include confidence data
         limit: Optional limit on number of results
         
     Returns:
-        List of topics with confidence data if user_id provided
+        List of topics
     """
     query = Topic.query
     
@@ -205,36 +215,18 @@ def optimize_topic_query(subject_id=None, user_id=None, limit=None):
     # Get topics
     topics = query.all()
     
-    # If user_id provided, fetch all confidence data in one query
-    if user_id and topics:
-        topic_ids = [t.id for t in topics]
-        
-        # Get all confidence records in a single query
-        confidences = TopicConfidence.query.filter(
-            TopicConfidence.user_id == user_id,
-            TopicConfidence.topic_id.in_(topic_ids)
-        ).all()
-        
-        # Create dictionary for quick lookup
-        confidence_dict = {c.topic_id: c for c in confidences}
-        
-        # Add confidence data to topics
-        for topic in topics:
-            topic.confidence = confidence_dict.get(topic.id)
-    
     return topics
 
-def optimize_subtopic_query(topic_id=None, user_id=None, limit=None):
+def optimize_subtopic_query(topic_id=None, limit=None):
     """
-    Optimized query for subtopics with confidence data included.
+    Optimized query for subtopics.
     
     Args:
         topic_id: Optional filter by topic ID
-        user_id: Optional user ID to include confidence data
         limit: Optional limit on number of results
         
     Returns:
-        List of subtopics with confidence data if user_id provided
+        List of subtopics
     """
     query = Subtopic.query
     
@@ -248,85 +240,4 @@ def optimize_subtopic_query(topic_id=None, user_id=None, limit=None):
     # Get subtopics
     subtopics = query.all()
     
-    # If user_id provided, fetch all confidence data in one query
-    if user_id and subtopics:
-        subtopic_ids = [s.id for s in subtopics]
-        
-        # Get all confidence records in a single query
-        confidences = SubtopicConfidence.query.filter(
-            SubtopicConfidence.user_id == user_id,
-            SubtopicConfidence.subtopic_id.in_(subtopic_ids)
-        ).all()
-        
-        # Create dictionary for quick lookup
-        confidence_dict = {c.subtopic_id: c for c in confidences}
-        
-        # Add confidence data to subtopics
-        for subtopic in subtopics:
-            subtopic.confidence = confidence_dict.get(subtopic.id)
-    
     return subtopics
-
-def get_topics_with_confidence(subject_id, user_id):
-    """
-    Get topics with confidence data in a single efficient query.
-    
-    Args:
-        subject_id: Subject ID to get topics for
-        user_id: User ID to get confidence data for
-        
-    Returns:
-        List of topics with confidence data attached
-    """
-    # Use join to get data in a single query
-    topics_with_confidence = db.session.query(
-        Topic, TopicConfidence
-    ).outerjoin(
-        TopicConfidence, 
-        db.and_(
-            TopicConfidence.topic_id == Topic.id,
-            TopicConfidence.user_id == user_id
-        )
-    ).filter(
-        Topic.subject_id == subject_id
-    ).all()
-    
-    # Process results
-    result_topics = []
-    for topic, confidence in topics_with_confidence:
-        topic.confidence = confidence
-        result_topics.append(topic)
-    
-    return result_topics
-
-def get_subtopics_with_confidence(topic_id, user_id):
-    """
-    Get subtopics with confidence data in a single efficient query.
-    
-    Args:
-        topic_id: Topic ID to get subtopics for
-        user_id: User ID to get confidence data for
-        
-    Returns:
-        List of subtopics with confidence data attached
-    """
-    # Use join to get data in a single query
-    subtopics_with_confidence = db.session.query(
-        Subtopic, SubtopicConfidence
-    ).outerjoin(
-        SubtopicConfidence, 
-        db.and_(
-            SubtopicConfidence.subtopic_id == Subtopic.id,
-            SubtopicConfidence.user_id == user_id
-        )
-    ).filter(
-        Subtopic.topic_id == topic_id
-    ).all()
-    
-    # Process results
-    result_subtopics = []
-    for subtopic, confidence in subtopics_with_confidence:
-        subtopic.confidence = confidence
-        result_subtopics.append(subtopic)
-    
-    return result_subtopics

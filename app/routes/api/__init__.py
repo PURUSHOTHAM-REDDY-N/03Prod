@@ -1,21 +1,20 @@
 from flask import Blueprint, jsonify, request, current_app, send_from_directory
 import os
 from flask_login import login_required, current_user
-from datetime import datetime
+from datetime import datetime, timedelta
 from app import db
 from app.models.task import Task, TaskSubtopic, TaskType
 from app.models.curriculum import Subtopic, Topic
-from app.models.confidence import SubtopicConfidence, TopicConfidence
-from app.utils.confidence_utils import update_subtopic_confidence, update_subtopics_confidence_from_dict, update_topic_confidence as update_topic_conf_util
 from app.utils.task_generator import generate_replacement_task
-from app.utils.analytics_utils import ConfidenceAnalytics
 from app.routes.api.curriculum import curriculum_bp
+from app.routes.api.confidence import confidence_bp
 
 # Create blueprint
 api_bp = Blueprint('api', __name__)
 
-# Register curriculum blueprint with API
+# Register blueprints with API
 api_bp.register_blueprint(curriculum_bp)
+api_bp.register_blueprint(confidence_bp)
 
 @api_bp.route('/tasks/complete/<int:task_id>', methods=['POST'])
 @login_required
@@ -29,30 +28,16 @@ def complete_task(task_id):
     
     # Mark task as completed
     task.mark_completed()
-    
-    # Set confidence prompt flag
-    task.confidence_prompt_shown = True
     db.session.commit()
     
-    # Get subtopics in this task for confidence prompt
+    # Get subtopics in this task
     subtopics = []
     for task_subtopic in task.subtopics:
         subtopic = Subtopic.query.get(task_subtopic.subtopic_id)
         if subtopic:
-            # Get current confidence
-            confidence = SubtopicConfidence.query.filter_by(
-                user_id=current_user.id,
-                subtopic_id=subtopic.id
-            ).first()
-            
-            confidence_level = confidence.confidence_level if confidence else 3
-            priority = confidence.priority if confidence else False
-            
             subtopics.append({
                 'id': subtopic.id,
-                'title': subtopic.title,
-                'confidence': confidence_level,
-                'priority': priority
+                'title': subtopic.title
             })
     
     return jsonify({
@@ -324,133 +309,6 @@ def practice_subtopic():
         'task_id': task.id
     })
 
-@api_bp.route('/topic-confidence/<int:topic_id>', methods=['POST'])
-@login_required
-def update_topic_confidence(topic_id):
-    """Update confidence for a topic."""
-    if not request.is_json:
-        return jsonify({'success': False, 'message': 'Invalid request format'}), 400
-    
-    new_level = request.json.get('confidence_level')
-    
-    if not new_level or not 1 <= new_level <= 5:
-        return jsonify({'success': False, 'message': 'Invalid confidence level'}), 400
-    
-    # Get the topic
-    topic = Topic.query.get_or_404(topic_id)
-    
-    # Get all subtopics for this topic
-    subtopics = Subtopic.query.filter_by(topic_id=topic_id).all()
-    
-    if not subtopics:
-        return jsonify({
-            'success': False, 
-            'message': 'Cannot set topic confidence directly. Topic has no subtopics.'
-        }), 400
-    
-    # Update all subtopic confidences to this level first
-    for subtopic in subtopics:
-        # Find or create confidence entry for each subtopic
-        subtopic_confidence = SubtopicConfidence.query.filter_by(
-            user_id=current_user.id,
-            subtopic_id=subtopic.id
-        ).first()
-        
-        if not subtopic_confidence:
-            subtopic_confidence = SubtopicConfidence(
-                user_id=current_user.id,
-                subtopic_id=subtopic.id,
-                confidence_level=new_level  # Use the direct value (1-5 scale)
-            )
-            db.session.add(subtopic_confidence)
-        else:
-            subtopic_confidence.update_confidence(new_level)
-    
-    db.session.commit()
-    
-    # Now calculate and update the topic confidence based on these subtopics
-    confidence_level = update_topic_conf_util(current_user.id, topic_id)
-    
-    return jsonify({
-        'success': True,
-        'message': 'Topic confidence updated via subtopic updates',
-        'topic_id': topic_id,
-        'confidence_level': new_level  # Return the original 1-5 scale value to frontend
-    })
-
-@api_bp.route('/subtopics/update_confidence', methods=['POST'])
-@login_required
-def update_subtopic_confidence():
-    """Update confidence for subtopics."""
-    if not request.is_json:
-        return jsonify({'success': False, 'message': 'Invalid request format'}), 400
-    
-    subtopic_data = request.json.get('subtopics', {})
-    
-    if not subtopic_data:
-        return jsonify({'success': False, 'message': 'No subtopic data provided'}), 400
-    
-    # Format for update function
-    formatted_data = {}
-    
-    for subtopic_id, data in subtopic_data.items():
-        confidence_level = data.get('confidence')
-        priority = data.get('priority', False)
-        
-        if confidence_level and 1 <= confidence_level <= 5:
-            formatted_data[int(subtopic_id)] = (confidence_level, priority)
-    
-    # Update confidences
-    success = update_subtopics_confidence_from_dict(current_user.id, formatted_data)
-    
-    if not success:
-        return jsonify({'success': False, 'message': 'Error updating confidences'}), 500
-    
-    return jsonify({
-        'success': True,
-        'message': f'Updated {len(formatted_data)} subtopic confidences'
-    })
-
-@api_bp.route('/subtopics/priority/<int:subtopic_id>', methods=['POST'])
-@login_required
-def set_subtopic_priority(subtopic_id):
-    """Set priority for a subtopic."""
-    if not request.is_json:
-        return jsonify({'success': False, 'message': 'Invalid request format'}), 400
-    
-    priority = request.json.get('priority', False)
-    
-    # Get the subtopic
-    subtopic = Subtopic.query.get_or_404(subtopic_id)
-    
-    # Find or create confidence entry
-    confidence = SubtopicConfidence.query.filter_by(
-        user_id=current_user.id,
-        subtopic_id=subtopic_id
-    ).first()
-    
-    if confidence:
-        confidence.set_priority(priority)
-    else:
-        subtopic_key = subtopic.generate_subtopic_key()
-        confidence = SubtopicConfidence(
-            user_id=current_user.id,
-            subtopic_id=subtopic_id,
-            subtopic_key=subtopic_key,
-            confidence_level=3,  # Default
-            priority=priority
-        )
-        db.session.add(confidence)
-    
-    db.session.commit()
-    
-    return jsonify({
-        'success': True,
-        'message': f'Subtopic priority {"set" if priority else "unset"}',
-        'subtopic_id': subtopic_id,
-        'priority': priority
-    })
-
 @api_bp.route('/tasks/start/<int:task_id>', methods=['POST'])
 @login_required
 def start_task(task_id):
@@ -474,12 +332,9 @@ def start_task(task_id):
 @login_required
 def get_pomodoro_stats():
     """Get statistics for the Pomodoro dashboard."""
-    # Get task completion rate
-    analytics = ConfidenceAnalytics(current_user.id)
-    
     # Calculate completion rate for last 7 days
     today = datetime.utcnow().date()
-    seven_days_ago = today - datetime.timedelta(days=7)
+    seven_days_ago = today - timedelta(days=7)
     
     total_tasks = Task.query.filter(
         Task.user_id == current_user.id,
@@ -496,23 +351,12 @@ def get_pomodoro_stats():
     
     completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
     
-    # Get focus areas (priority subtopics)
-    priority_subtopics = analytics.get_priority_recommendations(limit=3)
-    
     return jsonify({
         'success': True,
         'stats': {
             'completion_rate': completion_rate,
             'total_pomodoros': 0,  # This would be stored in a new model if implemented
-            'focus_time': 0,       # This would be stored in a new model if implemented
-            'focus_areas': [
-                {
-                    'id': item['subtopic'].id,
-                    'title': item['subtopic'].title,
-                    'subject': item['subject'].title
-                }
-                for item in priority_subtopics
-            ]
+            'focus_time': 0        # This would be stored in a new model if implemented
         }
     })
 

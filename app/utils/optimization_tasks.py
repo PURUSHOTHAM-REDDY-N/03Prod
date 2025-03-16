@@ -292,13 +292,6 @@ def update_task_priorities(user_id, batch_size=50):
         elif task.importance <= 2:  # Low importance
             task.priority = max(10, task.priority - 10)
         
-        # Factor in confidence
-        if hasattr(task, 'confidence') and task.confidence is not None:
-            if task.confidence <= 30:  # Low confidence
-                task.priority = min(100, task.priority + 20)
-            elif task.confidence >= 70:  # High confidence
-                task.priority = max(10, task.priority - 10)
-        
         # Update last_updated timestamp
         task.last_updated = datetime.utcnow()
     

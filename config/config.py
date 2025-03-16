@@ -36,8 +36,20 @@ class ProductionConfig(Config):
     print(f"Environment variables: {list(os.environ.keys())}")
     print(f"DATABASE_URL: {database_url}")
     
-    if database_url:
-        # Format the URL for pg8000 driver
+    # Check if we're on Railway by looking for specific environment variables
+    if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('RAILWAY_SERVICE_ID'):
+        # Use Railway's PostgreSQL environment variables directly
+        pg_user = os.environ.get('PGUSER', 'postgres')
+        pg_password = os.environ.get('PGPASSWORD', '')
+        pg_host = os.environ.get('PGHOST', 'localhost')
+        pg_port = os.environ.get('PGPORT', '5432')
+        pg_database = os.environ.get('PGDATABASE', 'railway')
+        
+        # Construct the SQLAlchemy URI using environment variables
+        SQLALCHEMY_DATABASE_URI = f"postgresql+pg8000://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_database}"
+        print(f"Using constructed database URL from Railway environment variables: {SQLALCHEMY_DATABASE_URI}")
+    elif database_url:
+        # Format the URL for pg8000 driver for non-Railway deployments
         if database_url.startswith('postgres://'):
             database_url = database_url.replace('postgres://', 'postgresql+pg8000://', 1)
         elif database_url.startswith('postgresql://'):

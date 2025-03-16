@@ -98,10 +98,6 @@ def register():
         
         db.session.commit()
         
-        # Initialize confidence values for all subtopics
-        from app.utils.confidence_utils import initialize_user_confidence
-        stats = initialize_user_confidence(user.id)
-        
         flash('Account created successfully! Please log in.', 'success')
         return redirect(url_for('auth.login'))
     
@@ -143,14 +139,6 @@ def test_login():
     if not subjects_exist:
         flash('Warning: No curriculum data has been imported. Please run "flask import-data" first.', 'warning')
     else:
-        # Initialize confidence values for all topics and subtopics
-        from app.utils.confidence_utils import initialize_user_confidence
-        stats = initialize_user_confidence(test_user.id)
-        if stats['errors']:
-            flash(f'Warning: Error initializing confidence records: {stats["errors"]}', 'warning')
-        elif stats['subtopics_initialized'] > 0 or stats['topics_initialized'] > 0:
-            flash(f'Initialized {stats["subtopics_initialized"]} subtopic and {stats["topics_initialized"]} topic confidence records', 'info')
-        
         flash('Logged in as test user', 'info')
     
     return redirect(url_for('main.index'))

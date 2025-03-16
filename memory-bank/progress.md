@@ -1,9 +1,9 @@
 # Progress
 
 ## Project Status
-**Current Phase**: Feature Development
+**Current Phase**: Feature Enhancement
 
-The Timetable project has transitioned from bug fixing to feature development. We have successfully completed the MVP release with core task management and progress tracking functionality. We've also successfully implemented the curriculum management system and enhanced the UI with a modern glass morphism design. The latest work focused on fixing UI interaction issues with topic confidence bars to ensure they update reliably when subtopic confidence changes.
+The Timetable project has transitioned from feature development to enhancement and refinement. We have successfully completed the MVP release with core task management and progress tracking functionality. We've also successfully implemented the curriculum management system and enhanced the UI with a modern glass morphism design. The latest enhancement is the reimplementation of the personalized confidence system to help users track their learning progress with confidence levels for each topic and subtopic.
 
 ## What Works
 1. **Project Structure**:
@@ -11,7 +11,7 @@ The Timetable project has transitioned from bug fixing to feature development. W
    - Memory bank files maintained and updated
    - Rules documentation available
    - Comprehensive curriculum management system implemented
-   - Fixed UI interaction bugs in curriculum confidence system
+   - Added personalized confidence tracking system
 
 2. **Frontend Templates**:
    - Template syntax issues fixed in key files (index.html, progress.html)
@@ -43,6 +43,7 @@ The Timetable project has transitioned from bug fixing to feature development. W
    - Improved Promise handling for concurrent requests
    - Properly sequenced UI updates
    - Centralized calculation logic on the server-side
+   - Implemented bulk data loading for confidence system
 
 6. **Backend Core**:
    - Python dependency issues resolved (python-dotenv properly installed)
@@ -90,7 +91,6 @@ The Timetable project has transitioned from bug fixing to feature development. W
     - Made dark/light mode more distinct with background color differences
     - Enhanced color-coded progress visualization
     - Added animated completion indicators
-    - Fixed topic confidence bar updates to ensure they update reliably when subtopic confidence changes
 
 11. **Curriculum Management System**:
     - Implemented comprehensive curriculum browser with three-panel interface
@@ -100,35 +100,43 @@ The Timetable project has transitioned from bug fixing to feature development. W
     - Enhanced confidence bars to support floating-point values (0-100%) rather than fixed positions
     - Added radiating animation effect for confidence bars at 100%
     - Set subtopic confidence default to 3/5 (50% capacity)
-    - Fixed subtopic confidence initialization to properly default to 3/5
     - Created comprehensive confidence initialization utility for new users
     - Added proper initialization of confidence records on user login
-    - Fixed API endpoints to correctly create confidence records with default values
     - Updated curriculum data with clearer Psychology topic descriptions
     - Filtered out Psychology topics with 0 subtopics for better user experience
     - Added priority marking functionality for important curriculum items
     - Created search functionality for finding curriculum content
     - Developed data import system for curriculum content
 
+12. **Personalized Confidence System**:
+    - Implemented subtopic confidence selection with five colored buttons (red to green)
+    - Added topic confidence visualization with color-coded progress bars
+    - Created database models for storing confidence data
+    - Implemented automatic topic confidence calculation from subtopic confidences
+    - Added special visual effects for 100% confidence achievements
+    - Created helper scripts for database table creation and testing
+    - Implemented priority weighting system using formula (7 - confidence_level)²
+    - Added client-side caching for better performance
+    - Implemented bulk data loading strategy as requested
+
 ## Recent UI Enhancements
-- Updated to glass morphism design with increased transparency and better blur effects
-- Changed color scheme to orange accent colors (#ff8c29 and #ffad63)
+- Implemented personalized confidence system with colored confidence buttons
+- Added color-coded topic confidence bars with responsive animations
+- Implemented special gold animation for 100% confidence achievements
 - Enhanced form controls with improved styling and focus states
 - Made containers truly see-through so backgrounds are visible behind them
 - Added subtle hover effects and animations to interactive elements
-- Improved mobile responsiveness, especially for the curriculum browser
-- Fixed topic confidence bars to update consistently when subtopic confidence changes
 
 ## What's In Progress
-1. **Further Mobile Responsiveness Improvements**:
-   - Testing on additional screen sizes and device types
-   - Enhancing navigation menu behavior on very small screens
-   - Implementing optimized touch interactions
+1. **Task Generation with Confidence Integration**:
+   - Using confidence data to prioritize task generation
+   - Implementing the weighting system in task selection algorithm
+   - Creating personalized study recommendations based on confidence levels
 
-2. **Database and ORM Refinements**:
-   - Continuing to refine relationship definitions across all models
-   - Adding comprehensive validation across model interactions
-   - Implementing more robust database integrity checks
+2. **Analytics Integration**:
+   - Tracking confidence changes over time
+   - Visualizing progress in learning different topics
+   - Generating insights from confidence patterns
 
 ## What's Left to Build
 
@@ -167,49 +175,92 @@ The Timetable project has transitioned from bug fixing to feature development. W
    - Database initialization
 
 ## Known Issues
-- ~~Dependencies need to be installed for the app to work properly (flask_sqlalchemy)~~ (Fixed: Added explicit SQLAlchemy dependency in requirements.txt and updated import statement in confidence.py)
-- ~~Topic confidence bars not updating reliably when subtopic confidence is changed~~ (Fixed: Simplified DOM update logic in curriculum.js for more consistent behavior, added comprehensive error handling and detailed logging)
+- None currently identified
 
 ## Recent Fixes
 
-### Updated Topic Confidence Bar Implementation & Subtopic Loading (3/12/2025)
-We've completely reimplemented the topic confidence bar and changed the subtopic loading approach for better performance and reliability. The key improvements include:
+### Task Generation with Confidence Integration (3/15/2025)
+We've fixed the task generation system to work properly with the confidence tracking system:
 
-1. **Code Improvements:**
-   - Completely rewrote the topic confidence bar implementation with enhanced animations
-   - Fixed issues where topic confidence bars weren't updating reliably for new users by using a more robust initialization approach
-   - Changed subtopic loading from dynamic/on-demand to all-at-once for better performance and usability
-   - Added enhanced status messages and loading indicators
-   - Improved memory management by properly clearing confidence caches
-   - Enhanced CSS with cleaner transitions and state indicators for loading/success/errors
-   - Enhanced topic selection to handle subtopics without needing to reload them
+1. **SQL Syntax Error Fix:**
+   - Fixed improper SQL parameter binding for IN clauses
+   - Used correct string formatting for multiple subject IDs
+   - Added improved error handling for empty result sets
 
-2. **Confidence Bar Enhancements:**
-   - Implemented a smooth transition effect by resetting the bar width to 0 before animating to the new width
-   - Used requestAnimationFrame for smoother animations with better performance
-   - Added better color handling based on confidence level ranges (1-20, 21-40, etc.)
-   - Maintained special animation effect for 100% confidence levels
-   - Made confidence value display clearer with better positioning
+2. **InstrumentedList Error Fix:**
+   - Corrected query filtering approach on relationships
+   - Changed to use proper query objects instead of filtering on result lists
+   - Added proper error handling to prevent cascading failures
 
-3. **Testing:**
-   - Tested with newly created users to verify proper initialization
-   - Verified topic confidence bars update correctly when subtopic confidence changes
-   - Confirmed all subtopics load properly and can be viewed by switching topics
-   - Validated that confidence value updates are correctly synchronized between UI and database
+3. **Task Duration Respect User Preferences:**
+   - Modified task subtopic addition to respect user's study time preferences
+   - Added weekday vs. weekend detection for appropriate duration
+   - Set task duration to half of the user's preferred study hours
+   - Added minimum (15min) and maximum (2 hours) limits on task duration
 
-### Previous Fix: Topic Confidence Bar Update Issue (3/12/2025)
-We've successfully fixed the issue where topic confidence bars weren't updating reliably when subtopic confidence was changed. The key improvements include:
+4. **Subject Distribution Balancing:**
+   - Fixed Biology (Y12/Y13) appearing twice as often as other subjects
+   - Made Biology courses share a single subject allocation
+   - Used effective subject count to properly calculate equal distribution
+   - Consistently applied this approach in all distribution calculations
 
-1. **Code Improvements:**
-   - Removed conditional check for `topicId` in the topic confidence bar update logic that was causing unnecessary failures
-   - Added comprehensive try/catch error handling around confidence update functions to prevent unhandled exceptions
-   - Added detailed console logging to help troubleshoot any future issues
-   - Fixed indentation and code structure issues for better maintainability
+5. **Confidence Weighting Implementation:**
+   - Implemented full confidence-based weighting in topic selection
+   - Added subtopic confidence prioritization using the (7 - confidence_level)² formula
+   - Created comprehensive error handling with safe fallbacks
+   - Added test script to verify confidence-based task generation works
+   - Ensured full probabilistic selection using the roulette wheel algorithm
 
-2. **Testing:**
-   - Tested changing subtopic confidence levels in the curriculum browser
-   - Verified that topic confidence bars now update appropriately when subtopic confidence changes
-   - Confirmed that robust error handling prevents failures even in edge cases
+6. **Query Optimization:**
+   - Improved efficiency of database queries
+   - Added bulk loading of confidence data for better performance
+   - Implemented proper error handling throughout
+
+### Reimplemented Confidence System (3/15/2025)
+We've re-implemented the confidence tracking system to enhance the learning experience with personalized confidence tracking. The key improvements include:
+
+1. **Database Models:**
+   - Created `SubtopicConfidence` and `TopicConfidence` models with proper relationships
+   - Added UniqueConstraint to prevent duplicate confidence records
+   - Implemented default confidence level of 3/5 for new users
+   - Added helper methods for common operations (get_or_create)
+
+2. **API Endpoints:**
+   - Created comprehensive API endpoints for confidence data management
+   - Added bulk data loading endpoint to load all confidence data at once
+   - Implemented automatic topic confidence recalculation when subtopic confidence changes
+   - Added proper error handling for all API operations
+
+3. **Frontend Implementation:**
+   - Added five colored buttons for subtopic confidence selection
+   - Implemented color-coded topic confidence bars with responsive animations
+   - Created special gold animation for 100% confidence achievements
+   - Added client-side caching for better performance
+   - Implemented proper event handling for confidence updates
+
+4. **Helper Scripts:**
+   - Created `create_confidence_tables.py` for database table creation
+   - Implemented `test_confidence_system.py` for testing the confidence system
+   - Added comprehensive error handling and validation
+
+### Removal of Confidence System (3/13/2025)
+We previously removed the confidence tracking system to simplify the overall application functionality. The changes included:
+
+1. **Database Changes:**
+   - Dropped the topic_confidences and subtopic_confidences tables
+   - Removed relationships to confidence tables in the curriculum models
+
+2. **Code Removals:**
+   - Removed confidence.py module and associated utility functions
+   - Removed confidence-related endpoints from the API
+   - Simplified the curriculum.js front-end code by removing confidence tracking
+   - Removed confidence-related CSS styles
+
+3. **UI Improvements:**
+   - Streamlined the curriculum browser interface
+   - Simplified the subtopic display
+   - Improved focus on core educational content
+   - Enhanced performance by removing unnecessary processing
 
 ## Upcoming Milestones
 1. **Milestone 1: Quality Assurance Implementation** ✅ (Complete)
@@ -269,7 +320,16 @@ We've successfully fixed the issue where topic confidence bars weren't updating 
    - ✅ Enhanced interactive elements
    - ✅ Improved form controls and containers
 
-7. **Milestone 7: Advanced Integrations** (Next)
+7. **Milestone 7: Confidence System Reimplementation** ✅ (Complete)
+   - ✅ Database models for confidence tracking
+   - ✅ API endpoints for confidence data management
+   - ✅ Client-side caching and bulk data loading
+   - ✅ Subtopic confidence selection UI
+   - ✅ Topic confidence visualization
+   - ✅ Priority weighting system implementation
+   - ✅ Helper scripts for database creation and testing
+
+8. **Milestone 8: Advanced Integrations** (Next)
    - Enhanced task generation based on curriculum confidence
    - Advanced analytics for learning progress
    - Comprehensive testing suite

@@ -178,20 +178,173 @@
   margin-top: 10px;
 }
 
-/* Topic Confidence */
-.topic-confidence {
+/* Confidence System Styling */
+
+/* Subtopic confidence container */
+.subtopic-confidence-container {
+  margin-top: 1rem;
   display: flex;
   flex-direction: column;
-  margin-top: 10px;
-  position: relative;
+  align-items: flex-start;
+}
+
+.confidence-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
 }
 
 .confidence-value {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  text-align: right;
-  margin-bottom: 3px;
   font-weight: 500;
+  color: var(--text-primary);
+  margin: 0 0.25rem;
+}
+
+.confidence-buttons {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.confidence-btn {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: transform 0.2s, border-color 0.2s;
+  position: relative;
+}
+
+.confidence-btn:hover {
+  transform: scale(1.15);
+  border-color: rgba(255, 255, 255, 0.8);
+}
+
+.confidence-btn[aria-selected="true"] {
+  transform: scale(1.2);
+  border-color: white;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+/* Confidence button colors */
+.confidence-btn[data-level="1"] { background-color: #ff5252; /* Red */ }
+.confidence-btn[data-level="2"] { background-color: #ff9800; /* Orange */ }
+.confidence-btn[data-level="3"] { background-color: #ffeb3b; /* Yellow */ }
+.confidence-btn[data-level="4"] { background-color: #4caf50; /* Green */ }
+.confidence-btn[data-level="5"] { background-color: #1e8e3e; /* Dark Green */ }
+
+/* Topic confidence container */
+.topic-confidence-container {
+  margin-top: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.topic-confidence-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.topic-confidence-bar-container {
+  width: 100%;
+  height: 0.5rem;
+  background-color: rgba(200, 200, 200, 0.3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.topic-confidence-bar {
+  height: 100%;
+  width: 0;
+  transition: width 0.7s, background-color 0.7s;
+  border-radius: 4px;
+}
+
+/* Color ranges for topic confidence bar */
+.confidence-0-20 { background-color: #ff5252; /* Red */ }
+.confidence-20-40 { background-color: #ff9800; /* Orange */ }
+.confidence-40-60 { background-color: #ffeb3b; /* Yellow */ }
+.confidence-60-80 { background-color: #4caf50; /* Green */ }
+.confidence-80-100 { background-color: #1e8e3e; /* Dark Green */ }
+.confidence-100 { 
+  background: linear-gradient(to right, #ffd700, #ffaa00, #ffd700); /* More vivid gold gradient */
+  background-size: 200% 100%;
+  border: 1px solid rgba(255, 215, 0, 0.7);
+  position: relative;
+  z-index: 1;
+  animation: 
+    shine-gold 3s infinite alternate, 
+    pulse-gold 2s infinite, 
+    scale-gold 1.5s infinite alternate;
+}
+
+.confidence-100::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  background: radial-gradient(circle, rgba(255, 215, 0, 0.6) 0%, rgba(255, 215, 0, 0) 70%);
+  border-radius: 8px;
+  z-index: -1;
+  animation: sparkle-rotate 3s infinite linear;
+}
+
+.confidence-100::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.8) 5%, transparent 6%),
+    radial-gradient(circle at 30% 45%, rgba(255, 255, 255, 0.8) 3%, transparent 4%),
+    radial-gradient(circle at 55% 30%, rgba(255, 255, 255, 0.8) 4%, transparent 5%),
+    radial-gradient(circle at 75% 60%, rgba(255, 255, 255, 0.8) 3%, transparent 4%),
+    radial-gradient(circle at 90% 20%, rgba(255, 255, 255, 0.8) 4%, transparent 5%);
+  z-index: 2;
+  opacity: 0;
+  animation: sparkle 2s infinite;
+}
+
+/* Radiant animation for 100% confidence */
+@keyframes pulse-gold {
+  0% { box-shadow: 0 0 10px 3px rgba(255, 215, 0, 0.6); }
+  50% { box-shadow: 0 0 30px 12px rgba(255, 166, 0, 0.8); }
+  100% { box-shadow: 0 0 10px 3px rgba(255, 215, 0, 0.6); }
+}
+
+/* Shimmering effect for gold confidence */
+@keyframes shine-gold {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Subtle scaling effect */
+@keyframes scale-gold {
+  0% { transform: scaleY(1); }
+  100% { transform: scaleY(1.15); }
+}
+
+/* Sparkle effect */
+@keyframes sparkle {
+  0% { opacity: 0; }
+  50% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Rotating glow */
+@keyframes sparkle-rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* Topic subtopics container (hidden by default) */
@@ -238,226 +391,6 @@
   color: #ff4c4c;
 }
 
-/* Confidence bar */
-.confidence-bar-container {
-  height: 8px;
-  background-color: rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 5px;
-  position: relative;
-}
-
-.confidence-bar {
-  height: 100%;
-  width: 0; /* Start at 0 and animate to actual width */
-  border-radius: 4px;
-  transition: width 0.5s ease, background-color 0.5s ease;
-}
-
-/* Color ranges for the confidence bar (1-100 scale) */
-.confidence-bar[data-level] {
-  background-color: var(--confidence-3); /* Default middle value */
-}
-
-/* Low confidence (1-20) */
-.confidence-bar[data-level="1"],
-.confidence-bar[data-level="2"],
-.confidence-bar[data-level="3"],
-.confidence-bar[data-level="4"],
-.confidence-bar[data-level="5"],
-.confidence-bar[data-level="6"],
-.confidence-bar[data-level="7"],
-.confidence-bar[data-level="8"],
-.confidence-bar[data-level="9"],
-.confidence-bar[data-level="10"],
-.confidence-bar[data-level="11"],
-.confidence-bar[data-level="12"],
-.confidence-bar[data-level="13"],
-.confidence-bar[data-level="14"],
-.confidence-bar[data-level="15"],
-.confidence-bar[data-level="16"],
-.confidence-bar[data-level="17"],
-.confidence-bar[data-level="18"],
-.confidence-bar[data-level="19"],
-.confidence-bar[data-level="20"] {
-  background-color: var(--confidence-1);
-}
-
-/* Below average confidence (21-40) */
-.confidence-bar[data-level="21"],
-.confidence-bar[data-level="22"],
-.confidence-bar[data-level="23"],
-.confidence-bar[data-level="24"],
-.confidence-bar[data-level="25"],
-.confidence-bar[data-level="26"],
-.confidence-bar[data-level="27"],
-.confidence-bar[data-level="28"],
-.confidence-bar[data-level="29"],
-.confidence-bar[data-level="30"],
-.confidence-bar[data-level="31"],
-.confidence-bar[data-level="32"],
-.confidence-bar[data-level="33"],
-.confidence-bar[data-level="34"],
-.confidence-bar[data-level="35"],
-.confidence-bar[data-level="36"],
-.confidence-bar[data-level="37"],
-.confidence-bar[data-level="38"],
-.confidence-bar[data-level="39"],
-.confidence-bar[data-level="40"] {
-  background-color: var(--confidence-2);
-}
-
-/* Average confidence (41-60) */
-.confidence-bar[data-level="41"],
-.confidence-bar[data-level="42"],
-.confidence-bar[data-level="43"],
-.confidence-bar[data-level="44"],
-.confidence-bar[data-level="45"],
-.confidence-bar[data-level="46"],
-.confidence-bar[data-level="47"],
-.confidence-bar[data-level="48"],
-.confidence-bar[data-level="49"],
-.confidence-bar[data-level="50"],
-.confidence-bar[data-level="51"],
-.confidence-bar[data-level="52"],
-.confidence-bar[data-level="53"],
-.confidence-bar[data-level="54"],
-.confidence-bar[data-level="55"],
-.confidence-bar[data-level="56"],
-.confidence-bar[data-level="57"],
-.confidence-bar[data-level="58"],
-.confidence-bar[data-level="59"],
-.confidence-bar[data-level="60"] {
-  background-color: var(--confidence-3);
-}
-
-/* Good confidence (61-80) */
-.confidence-bar[data-level="61"],
-.confidence-bar[data-level="62"],
-.confidence-bar[data-level="63"],
-.confidence-bar[data-level="64"],
-.confidence-bar[data-level="65"],
-.confidence-bar[data-level="66"],
-.confidence-bar[data-level="67"],
-.confidence-bar[data-level="68"],
-.confidence-bar[data-level="69"],
-.confidence-bar[data-level="70"],
-.confidence-bar[data-level="71"],
-.confidence-bar[data-level="72"],
-.confidence-bar[data-level="73"],
-.confidence-bar[data-level="74"],
-.confidence-bar[data-level="75"],
-.confidence-bar[data-level="76"],
-.confidence-bar[data-level="77"],
-.confidence-bar[data-level="78"],
-.confidence-bar[data-level="79"],
-.confidence-bar[data-level="80"] {
-  background-color: var(--confidence-4);
-}
-
-/* Excellent confidence (81-99) */
-.confidence-bar[data-level="81"],
-.confidence-bar[data-level="82"],
-.confidence-bar[data-level="83"],
-.confidence-bar[data-level="84"],
-.confidence-bar[data-level="85"],
-.confidence-bar[data-level="86"],
-.confidence-bar[data-level="87"],
-.confidence-bar[data-level="88"],
-.confidence-bar[data-level="89"],
-.confidence-bar[data-level="90"],
-.confidence-bar[data-level="91"],
-.confidence-bar[data-level="92"],
-.confidence-bar[data-level="93"],
-.confidence-bar[data-level="94"],
-.confidence-bar[data-level="95"],
-.confidence-bar[data-level="96"],
-.confidence-bar[data-level="97"],
-.confidence-bar[data-level="98"],
-.confidence-bar[data-level="99"] {
-  background-color: var(--confidence-4);
-}
-
-/* Mastery (100) */
-.confidence-bar[data-level="100"] {
-  background-color: var(--confidence-5);
-}
-
-/* Radiating effect for 100% confidence */
-.confidence-bar.complete {
-  animation: radiate 2s infinite alternate;
-}
-
-@keyframes radiate {
-  from { box-shadow: 0 0 5px var(--confidence-5); }
-  to { box-shadow: 0 0 15px var(--confidence-5); }
-}
-
-.confidence-label {
-  font-size: 0.9rem;
-  margin-bottom: 10px;
-}
-
-/* Confidence selection */
-.confidence-selector {
-  display: flex;
-  gap: 5px;
-  margin: 15px 0;
-}
-
-.confidence-option {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.2s;
-  opacity: 0.6;
-}
-
-.confidence-option:hover {
-  transform: scale(1.1);
-  opacity: 0.8;
-}
-
-.confidence-option.selected {
-  opacity: 1;
-  transform: scale(1.1);
-}
-
-.confidence-option.confidence-1 { background-color: var(--confidence-1); }
-.confidence-option.confidence-2 { background-color: var(--confidence-2); }
-.confidence-option.confidence-3 { background-color: var(--confidence-3); }
-.confidence-option.confidence-4 { background-color: var(--confidence-4); }
-.confidence-option.confidence-5 { background-color: var(--confidence-5); }
-
-/* Priority button */
-.priority-toggle {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 1.2rem;
-  transition: all 0.2s;
-  padding: 5px;
-  border-radius: 50%;
-}
-
-.priority-toggle:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  transform: rotate(15deg);
-}
-
-.priority-toggle.active {
-  color: var(--warning-color);
-  animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.2); }
-  100% { transform: scale(1); }
-}
 
 /* Empty state */
 .empty-state {

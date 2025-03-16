@@ -2,6 +2,7 @@ from datetime import datetime
 from flask_login import UserMixin
 from app import db, bcrypt, login_manager
 from app.models.task import TaskTypePreference, TaskType
+from app.models.confidence import SubtopicConfidence, TopicConfidence
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -27,10 +28,11 @@ class User(db.Model, UserMixin):
     
     # Relationships
     task_type_preferences = db.relationship('TaskTypePreference', backref='user', lazy=True, cascade='all, delete-orphan')
-    topic_confidences = db.relationship('TopicConfidence', backref='user', lazy=True, cascade='all, delete-orphan')
-    subtopic_confidences = db.relationship('SubtopicConfidence', backref='user', lazy=True, cascade='all, delete-orphan')
     # Using explicit back_populates to avoid backref conflicts
     tasks = db.relationship('Task', back_populates='assigned_user', lazy=True, cascade='all, delete-orphan')
+    # Confidence relationships
+    subtopic_confidences = db.relationship('SubtopicConfidence', back_populates='user', lazy=True, cascade='all, delete-orphan')
+    topic_confidences = db.relationship('TopicConfidence', back_populates='user', lazy=True, cascade='all, delete-orphan')
     
     def __init__(self, username, password, email=None):
         self.username = username

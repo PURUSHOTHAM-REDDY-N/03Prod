@@ -1,6 +1,6 @@
 """
 Topic selection utilities for task generation.
-Handles topic selection and weighting based on user confidence.
+Handles topic selection for curriculum-based task generation.
 """
 
 import random
@@ -9,13 +9,13 @@ from app.models.confidence import TopicConfidence
 
 def select_weighted_topic(topics, user, subject_code):
     """
-    Select a topic with weighting based on confidence.
-    Topics with lower confidence levels are weighted more heavily.
+    Select a topic using confidence-based weighted selection.
+    Uses the formula (7 - confidence_level)² to prioritize lower confidence topics.
     
     Args:
         topics: List of Topic objects to choose from
-        user: User object for confidence lookup
-        subject_code: Subject code for confidence keys
+        user: User object
+        subject_code: Subject code
     
     Returns:
         The selected topic object.
@@ -23,46 +23,65 @@ def select_weighted_topic(topics, user, subject_code):
     if not topics:
         return None
     
-    # Get confidences for all topics
-    weighted_topics = []
+    # Get confidence levels for all topics in one query
+    topic_ids = [topic.id for topic in topics]
     
-    for topic in topics:
-        # Generate topic key for confidence lookup
-        topic_key = f"{subject_code}_{topic.name.replace(' ', '_') if topic.name else topic.title.replace(' ', '_')}"
+    try:
+        # Query topic confidence data for this user and these topics
+        confidence_data = TopicConfidence.query.filter(
+            TopicConfidence.user_id == user.id,
+            TopicConfidence.topic_id.in_(topic_ids)
+        ).all()
         
-        # Get confidence for this topic
-        confidence = TopicConfidence.query.filter_by(
-            user_id=user.id,
-            topic_id=topic.id,
-            topic_key=topic_key
-        ).first()
+        # Create dictionary for quick lookup
+        confidence_dict = {conf.topic_id: conf.confidence_percent for conf in confidence_data}
         
-        # Default confidence level if none exists
-        confidence_level = confidence.confidence_level if confidence else 3
+        # If no confidence data exists, initialize with default weights
+        if not confidence_dict:
+            # Default to equal selection if no confidence data
+            return random.choice(topics)
         
-        # Weight calculation: (7 - confidence_level)²
-        weight = (7 - confidence_level) ** 2
+        # Apply weighting formula (7 - confidence_level)²
+        # Higher weight = higher priority for selection
+        topic_weights = []
         
-        weighted_topics.append((topic, weight))
-    
-    # Perform weighted random selection
-    total_weight = sum(weight for _, weight in weighted_topics)
-    
-    if total_weight == 0:
-        # Fallback to random selection if all weights are zero
+        for topic in topics:
+            # Get confidence level (default to 3 if not found - 50% confidence)
+            confidence_percent = confidence_dict.get(topic.id, 50.0)
+            
+            # Convert percentage (0-100) to scale (1-5)
+            confidence_level = confidence_percent / 20  # 100% → 5, 80% → 4, etc.
+                
+            # Apply formula: (7 - confidence_level)²
+            # This gives higher weights to topics with lower confidence
+            weight = (7 - confidence_level) ** 2
+            
+            topic_weights.append((topic, weight))
+        
+        # Calculate total weight for normalization
+        total_weight = sum(weight for _, weight in topic_weights)
+        
+        # Handle edge case of zero total weight
+        if total_weight == 0:
+            return random.choice(topics)
+        
+        # Weighted random selection (roulette wheel)
+        r = random.uniform(0, total_weight)
+        current_weight = 0
+        
+        for topic, weight in topic_weights:
+            current_weight += weight
+            if r <= current_weight:
+                return topic
+        
+        # Fallback (should not be reached)
+        return topics[0]
+        
+    except Exception as e:
+        # Log the error but don't crash - fall back to random selection
+        from flask import current_app
+        current_app.logger.error(f"Error in topic selection: {str(e)}")
         return random.choice(topics)
-    
-    # Random selection with weights
-    r = random.uniform(0, total_weight)
-    current_weight = 0
-    
-    for topic, weight in weighted_topics:
-        current_weight += weight
-        if r <= current_weight:
-            return topic
-    
-    # Fallback (should not be reached)
-    return topics[0]
 
 def get_topics_for_subject(subject_id, include_nested=True):
     """
@@ -98,7 +117,7 @@ def get_subtopic_categories(paper_topic_id):
 
 def calculate_topic_priority(user_id, topic_id, days_threshold=14):
     """
-    Calculate priority for a topic based on user confidence and last practice.
+    Calculate priority for a topic based on last practice.
     
     Args:
         user_id: User ID to calculate priority for
@@ -111,14 +130,8 @@ def calculate_topic_priority(user_id, topic_id, days_threshold=14):
     from datetime import datetime, timedelta
     from app.models.task import Task
     
-    # Get the topic confidence
-    confidence = TopicConfidence.query.filter_by(
-        user_id=user_id,
-        topic_id=topic_id
-    ).first()
-    
-    # Base priority on confidence
-    base_priority = 5 - (confidence.confidence_level if confidence else 3)
+    # Base priority score
+    base_priority = 3
     
     # Calculate days since last practice
     threshold_date = datetime.utcnow() - timedelta(days=days_threshold)
@@ -132,9 +145,5 @@ def calculate_topic_priority(user_id, topic_id, days_threshold=14):
     # If no recent task or task is older than threshold, increase priority
     if not most_recent_task or most_recent_task.created_at < threshold_date:
         base_priority += 2
-    
-    # If topic is marked as priority, boost it
-    if confidence and confidence.priority:
-        base_priority += 3
     
     return base_priority

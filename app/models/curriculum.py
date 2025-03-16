@@ -1,5 +1,6 @@
 from app import db
 from datetime import datetime
+# Note: To avoid circular imports, we won't import the confidence models here
 
 class Subject(db.Model):
     """Model representing a subject in the curriculum."""
@@ -37,6 +38,8 @@ class Topic(db.Model):
     subject = db.relationship('Subject', back_populates='topics', lazy=True)
     subtopics = db.relationship('Subtopic', back_populates='topic', lazy=True, cascade='all, delete-orphan')
     child_topics = db.relationship('Topic', backref=db.backref('parent_topic', remote_side=[id]), lazy=True)
+    # Confidence relationship
+    topic_confidences = db.relationship('TopicConfidence', back_populates='topic', lazy=True, cascade='all, delete-orphan')
     
     def generate_topic_key(self):
         """Generate a unique key for this topic."""
@@ -60,8 +63,9 @@ class Subtopic(db.Model):
     
     # Relationships
     topic = db.relationship('Topic', back_populates='subtopics', lazy=True)
-    confidences = db.relationship('SubtopicConfidence', back_populates='subtopic', lazy=True, cascade='all, delete-orphan')
     task_subtopics = db.relationship('TaskSubtopic', back_populates='subtopic', lazy=True, cascade='all, delete-orphan')
+    # Confidence relationship
+    subtopic_confidences = db.relationship('SubtopicConfidence', back_populates='subtopic', lazy=True, cascade='all, delete-orphan')
     
     def generate_subtopic_key(self):
         """Generate a unique key for this subtopic."""

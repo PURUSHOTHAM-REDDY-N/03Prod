@@ -2,7 +2,6 @@ from flask import Blueprint, render_template, request, jsonify, current_app
 from flask_login import login_required, current_user
 from app import db
 from app.models.curriculum import Subject, Topic, Subtopic
-from app.models.confidence import TopicConfidence, SubtopicConfidence
 
 # Create a blueprint for curriculum routes
 curriculum = Blueprint('curriculum', __name__)
@@ -65,25 +64,11 @@ def get_subtopics(topic_id):
     
     result = []
     for subtopic in subtopics:
-        # Get user's confidence for this subtopic
-        confidence = SubtopicConfidence.query.filter_by(
-            user_id=current_user.id,
-            subtopic_id=subtopic.id
-        ).first()
-        
-        confidence_level = 1
-        priority = False
-        if confidence:
-            confidence_level = confidence.confidence_level
-            priority = confidence.priority
-        
         result.append({
             'id': subtopic.id,
             'title': subtopic.title,
             'description': subtopic.description,
-            'estimated_duration': subtopic.estimated_duration,
-            'confidence_level': confidence_level,
-            'priority': priority
+            'estimated_duration': subtopic.estimated_duration
         })
     
     return jsonify({'subtopics': result})
@@ -112,82 +97,3 @@ def search_curriculum():
     }
     
     return jsonify({'results': results})
-
-@curriculum.route('/api/user/confidence')
-@login_required
-def get_user_confidence():
-    """API endpoint to get user's confidence data."""
-    # Get user's subtopic confidences
-    subtopic_confidences = SubtopicConfidence.query.filter_by(user_id=current_user.id).all()
-    
-    return jsonify({
-        'confidences': [
-            {
-                'subtopic_id': conf.subtopic_id,
-                'level': conf.confidence_level,
-                'priority': conf.priority,
-                'last_updated': conf.last_updated.isoformat() if conf.last_updated else None
-            }
-            for conf in subtopic_confidences
-        ]
-    })
-
-@curriculum.route('/api/subtopic/<int:subtopic_id>/confidence', methods=['POST'])
-@login_required
-def update_subtopic_confidence(subtopic_id):
-    """Update a user's confidence level for a subtopic."""
-    data = request.get_json()
-    confidence_level = data.get('level')
-    
-    if not confidence_level or not 1 <= confidence_level <= 5:
-        return jsonify({'success': False, 'error': 'Invalid confidence level'}), 400
-    
-    # Verify subtopic exists
-    subtopic = Subtopic.query.get(subtopic_id)
-    if not subtopic:
-        return jsonify({'success': False, 'error': 'Subtopic not found'}), 404
-    
-    # Get or create the confidence record
-    confidence = SubtopicConfidence.query.filter_by(
-        user_id=current_user.id,
-        subtopic_id=subtopic_id
-    ).first()
-    
-    if not confidence:
-        confidence = SubtopicConfidence(
-            user_id=current_user.id,
-            subtopic_id=subtopic_id
-        )
-        db.session.add(confidence)
-    
-    confidence.update_confidence(confidence_level)
-    db.session.commit()
-    
-    return jsonify({'success': True})
-
-@curriculum.route('/api/subtopic/<int:subtopic_id>/priority', methods=['POST'])
-@login_required
-def toggle_subtopic_priority(subtopic_id):
-    """Toggle priority flag for a subtopic."""
-    # Verify subtopic exists
-    subtopic = Subtopic.query.get(subtopic_id)
-    if not subtopic:
-        return jsonify({'success': False, 'error': 'Subtopic not found'}), 404
-    
-    # Get or create the confidence record
-    confidence = SubtopicConfidence.query.filter_by(
-        user_id=current_user.id,
-        subtopic_id=subtopic_id
-    ).first()
-    
-    if not confidence:
-        confidence = SubtopicConfidence(
-            user_id=current_user.id,
-            subtopic_id=subtopic_id
-        )
-        db.session.add(confidence)
-    
-    confidence.toggle_priority()
-    db.session.commit()
-    
-    return jsonify({'success': True, 'priority': confidence.priority})
