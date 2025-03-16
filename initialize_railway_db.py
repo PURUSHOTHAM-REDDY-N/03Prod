@@ -16,11 +16,11 @@ def initialize_database():
     database_public_url = os.environ.get('DATABASE_PUBLIC_URL')
     
     if database_public_url:
-        # Format for SQLAlchemy with psycopg2 driver
+        # Format for SQLAlchemy with pg8000 driver
         if database_public_url.startswith('postgres://'):
-            database_public_url = database_public_url.replace('postgres://', 'postgresql+psycopg2://', 1)
+            database_public_url = database_public_url.replace('postgres://', 'postgresql+pg8000://', 1)
         elif database_public_url.startswith('postgresql://'):
-            database_public_url = database_public_url.replace('postgresql://', 'postgresql+psycopg2://', 1)
+            database_public_url = database_public_url.replace('postgresql://', 'postgresql+pg8000://', 1)
         
         print(f"Connecting to database using DATABASE_PUBLIC_URL: {database_public_url}")
         connection_string = database_public_url
@@ -31,11 +31,11 @@ def initialize_database():
             print("ERROR: No DATABASE_URL found in environment variables")
             return False
         
-        # Format for SQLAlchemy with psycopg2 driver
+        # Format for SQLAlchemy with pg8000 driver (compatible with Python 3.13)
         if database_url.startswith('postgres://'):
-            database_url = database_url.replace('postgres://', 'postgresql+psycopg2://', 1)
+            database_url = database_url.replace('postgres://', 'postgresql+pg8000://', 1)
         elif database_url.startswith('postgresql://'):
-            database_url = database_url.replace('postgresql://', 'postgresql+psycopg2://', 1)
+            database_url = database_url.replace('postgresql://', 'postgresql+pg8000://', 1)
         
         # Try using Railway TCP proxy domain if available
         railway_tcp_proxy = os.environ.get('RAILWAY_TCP_PROXY_DOMAIN')
