@@ -1,2 +1,2 @@
-# Web server with auto-initialization
-web: python create_db_tables.py && gunicorn run:app
+# Web server (database initialization happens in app startup)
+web: gunicorn run:app

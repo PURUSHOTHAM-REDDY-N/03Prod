@@ -1,7 +1,8 @@
 import os
+import sys
 from dotenv import load_dotenv
-from app import create_app
-from app.utils.data_import import seed_default_data
+from app import create_app, db
+from app.utils.data_import import seed_default_data, verify_imported_data
 from app.utils.curriculum_importer import import_curriculum_data as import_jsonc_curriculum
 
 # Load environment variables
@@ -17,6 +18,47 @@ else:
     
 print(f"Using environment: {env}")
 app = create_app(env)
+
+# Initialize database tables on application startup when on Railway
+if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('RAILWAY_SERVICE_ID'):
+    with app.app_context():
+        try:
+            print("=== RAILWAY DATABASE INITIALIZATION ===")
+            print(f"Database URL: {db.engine.url}")
+            
+            # Create all tables
+            print("Creating database tables...")
+            db.create_all()
+            
+            # List created tables
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            tables = inspector.get_table_names()
+            print(f"Created tables: {tables}")
+            
+            if not tables:
+                print("WARNING: No tables were created!")
+            
+            # Seed default data if tables were created
+            if tables:
+                print("Seeding default data...")
+                stats = seed_default_data()
+                print(f"Default data seeded: {stats}")
+                
+                # Import curriculum data
+                print("Importing curriculum data...")
+                success, message = import_jsonc_curriculum()
+                if success:
+                    print(f"Curriculum data imported: {message}")
+                else:
+                    print(f"Curriculum import issue: {message}")
+                
+                print("=== DATABASE INITIALIZATION COMPLETE ===")
+        except Exception as e:
+            print(f"ERROR during database initialization: {str(e)}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+            # Don't exit - let the app continue even if DB init fails
 
 @app.cli.command('init-db')
 def init_db():
