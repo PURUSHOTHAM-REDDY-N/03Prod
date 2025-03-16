@@ -2,6 +2,7 @@ import os
 import sys
 from dotenv import load_dotenv
 from app import create_app, db
+from sqlalchemy import inspect
 from app.utils.data_import import seed_default_data, verify_imported_data
 from app.utils.curriculum_importer import import_curriculum_data as import_jsonc_curriculum
 
@@ -141,6 +142,32 @@ def verify_data():
             current_app.logger.warning(f"Verification warnings: {verification['issues']}")
         else:
             current_app.logger.info("Data verification successful")
+
+@app.cli.command('railway-db-init')
+def railway_db_init():
+    """Initialize the database specifically for Railway deployment using enhanced connection logic."""
+    from flask import current_app
+    import importlib.util
+    
+    # Import the initialize_railway_db module dynamically
+    spec = importlib.util.spec_from_file_location(
+        "initialize_railway_db", 
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "initialize_railway_db.py")
+    )
+    initialize_railway_db = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(initialize_railway_db)
+    
+    # Run the database initialization
+    print("Running Railway database initialization with enhanced connection logic...")
+    success = initialize_railway_db.initialize_database()
+    
+    if success:
+        print("Railway database initialization completed successfully!")
+    else:
+        print("Railway database initialization failed!")
+        return 1
+    
+    return 0
 
 @app.cli.command('rebuild-db')
 def rebuild_db():
