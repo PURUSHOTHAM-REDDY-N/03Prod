@@ -7,7 +7,9 @@ from app.models.task import Task, TaskType, TaskTypePreference
 from app.utils.task_generator import generate_task_for_subject, get_subject_distribution_for_week
 from app.utils.analytics_utils import prepare_analytics_data, get_chart_data_for_dashboard
 from app.utils.optimization_utils import get_optimized_subject_distribution, generate_tasks_in_batch
+from app.utils.optimization_tasks import generate_balanced_task_batch
 import os
+import random
 
 # Create blueprint
 main_bp = Blueprint('main', __name__)
@@ -35,38 +37,61 @@ def index():
     
     # Generate tasks if none exist
     if not active_tasks and not completed_tasks:
-        # Calculate how many tasks to create based on study hours
-        study_hours = current_user.study_hours_per_day
-        
-        # Weekend adjustment
-        if datetime.utcnow().weekday() >= 5:  # 5=Saturday, 6=Sunday
-            study_hours = current_user.weekend_study_hours
-        
-        # Approximately 1 task per 30 minutes of study time
-        num_tasks = max(1, int(study_hours * 2))
-        
         try:
-            # Generate tasks in batch (more efficient)
-            # The function now returns a dictionary with tasks
-            result = generate_tasks_in_batch(current_user.id, num_tasks)
+            # Get all subjects
+            all_subjects = Subject.query.all()
             
-            if result and result.get('success') and result.get('tasks'):
-                active_tasks = result['tasks']
+            # If we have more than 3 subjects, randomly pick 3 different ones
+            random.shuffle(all_subjects)
+            subject_sample = all_subjects[:min(3, len(all_subjects))]
+            
+            # Try to generate tasks for each selected subject
+            new_tasks = []
+            
+            for subject in subject_sample:
+                task = generate_task_for_subject(current_user, subject.id)
+                if task:
+                    new_tasks.append(task)
+            
+            # If we successfully generated tasks, use them
+            if new_tasks:
+                active_tasks = new_tasks
             else:
-                # Fallback if tasks generation failed
-                active_tasks = []
-                if result and result.get('error'):
-                    # Log the error for debugging
-                    print(f"Error generating tasks: {result.get('error')}")
+                # Fallback to balanced task generation
+                result = generate_balanced_task_batch(current_user.id, count=3, max_per_subject=1)
+                
+                if result and isinstance(result, list) and result:
+                    active_tasks = result
+                else:
+                    # Fallback if balanced task generation failed
+                    # Calculate how many tasks to create based on study hours
+                    study_hours = current_user.study_hours_per_day
+                    
+                    # Weekend adjustment
+                    if datetime.utcnow().weekday() >= 5:  # 5=Saturday, 6=Sunday
+                        study_hours = current_user.weekend_study_hours
+                    
+                    # Approximately 1 task per 30 minutes of study time
+                    num_tasks = max(1, int(study_hours * 2))
+                    
+                    # Generate tasks in batch (more efficient)
+                    # The function now returns a dictionary with tasks
+                    result = generate_tasks_in_batch(current_user.id, num_tasks)
+                    
+                    if result and result.get('success') and result.get('tasks'):
+                        active_tasks = result['tasks']
+                    else:
+                        # Fallback if tasks generation failed
+                        active_tasks = []
+                        if result and result.get('error'):
+                            # Log the error for debugging
+                            print(f"Error generating tasks: {result.get('error')}")
         except Exception as e:
             # Handle any exceptions
             print(f"Exception while generating tasks: {str(e)}")
             active_tasks = []
     
-    return render_template('main/index.html', 
-                           active_tasks=active_tasks,
-                           completed_tasks=completed_tasks,
-                           current_date=today)
+    return render_template('main/index.html', active_tasks=active_tasks, completed_tasks=completed_tasks, current_date=today)
 
 @main_bp.route('/calendar')
 @login_required

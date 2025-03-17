@@ -4,11 +4,12 @@ from flask_login import login_required, current_user
 from datetime import datetime
 from app import db
 from app.models.task import Task, TaskSubtopic, TaskType
-from app.models.curriculum import Subtopic, Topic
+from app.models.curriculum import Subtopic, Topic, Subject
 from app.models.confidence import SubtopicConfidence, TopicConfidence
 from app.utils.confidence_utils import update_subtopic_confidence, update_subtopics_confidence_from_dict, update_topic_confidence as update_topic_conf_util
-from app.utils.task_generator import generate_replacement_task
+from app.utils.task_generator import generate_replacement_task, generate_task_for_subject
 from app.utils.analytics_utils import ConfidenceAnalytics
+from app.utils.optimization_tasks import generate_balanced_task_batch
 
 # Create blueprint
 api_bp = Blueprint('api', __name__)
@@ -107,7 +108,7 @@ def skip_task(task_id):
 @api_bp.route('/tasks/refresh', methods=['POST'])
 @login_required
 def refresh_tasks():
-    """Regenerate all tasks for today."""
+    """Regenerate all tasks for today with improved variety."""
     today = datetime.utcnow().date()
     
     # Get all active tasks for today
@@ -124,40 +125,82 @@ def refresh_tasks():
     
     db.session.commit()
     
-    # Calculate how many tasks to create
+    # Calculate study hours
     study_hours = current_user.study_hours_per_day
     
     # Weekend adjustment
     if datetime.utcnow().weekday() >= 5:  # 5=Saturday, 6=Sunday
         study_hours = current_user.weekend_study_hours
+        
+    # Get all completed tasks from today to avoid repeating
+    completed_tasks = Task.query.filter(
+        Task.user_id == current_user.id,
+        Task.due_date == today,
+        Task.completed_at.isnot(None)
+    ).all()
     
-    # Approximately 1 task per 30 minutes of study time
-    num_tasks = max(1, int(study_hours * 2))
+    completed_subject_ids = [task.subject_id for task in completed_tasks]
     
-    # Generate new tasks
+    # Get all available subjects
+    all_subjects = Subject.query.all()
+    
+    # Prefer subjects that haven't been completed today
+    available_subjects = [s for s in all_subjects if s.id not in completed_subject_ids]
+    
+    # If we've completed tasks for all subjects today, use all subjects
+    if not available_subjects:
+        available_subjects = all_subjects
+    
+    # If we have more than 3 subjects, randomly pick 3 different ones
+    import random
+    random.shuffle(available_subjects)
+    subject_sample = available_subjects[:min(3, len(available_subjects))]
+    
+    # Always generate exactly 3 tasks - one for each main subject category
+    # But now we're more careful about which subjects to use
+    from app.utils.optimization_tasks import generate_balanced_task_batch
+    from app.utils.task_generator import generate_task_for_subject
+    
+    # Try to generate tasks for each selected subject
     new_tasks = []
-    for _ in range(num_tasks):
-        task = generate_replacement_task(current_user)
+    
+    for subject in subject_sample:
+        task = generate_task_for_subject(current_user, subject.id)
         if task:
-            new_tasks.append({
-                'id': task.id,
-                'title': task.title,
-                'description': task.description,
-                'duration': task.total_duration,
-                'subject': {
-                    'id': task.subject_id,
-                    'title': task.subject.title
-                },
-                'task_type': {
-                    'id': task.task_type_id,
-                    'name': task.task_type.name
-                }
-            })
+            new_tasks.append(task)
+    
+    # If we don't have enough tasks, fall back to the original balanced approach
+    if len(new_tasks) < min(3, len(all_subjects)):
+        # Clear the tasks we've generated so far
+        for task in new_tasks:
+            db.session.delete(task)
+        db.session.commit()
+        
+        # Use balanced task generation as a fallback
+        new_tasks = generate_balanced_task_batch(current_user.id, count=3, max_per_subject=1)
+    
+    # Format tasks for the API response
+    formatted_tasks = []
+    for task in new_tasks:
+        formatted_tasks.append({
+            'id': task.id,
+            'title': task.title,
+            'description': task.description,
+            'duration': task.total_duration,
+            'subject': {
+                'id': task.subject_id,
+                'title': task.subject.title
+            },
+            'task_type': {
+                'id': task.task_type_id,
+                'name': task.task_type.name
+            }
+        })
     
     return jsonify({
         'success': True,
-        'message': f'Generated {len(new_tasks)} new tasks',
-        'tasks': new_tasks
+        'message': f'Generated {len(formatted_tasks)} new tasks',
+        'tasks': formatted_tasks
     })
 
 @api_bp.route('/tasks/add_bonus', methods=['POST'])
