@@ -30,7 +30,7 @@ def add_subtopics_to_task(task, parent_topic, user, max_duration=None):
         today = datetime.utcnow().date()
         is_weekend = today.weekday() >= 5
         
-        # Convert hours to minutes
+        # Get study hours based on day of week
         if is_weekend and hasattr(user, 'weekend_study_hours'):
             # Use weekend study hours if it's a weekend
             hours = user.weekend_study_hours
@@ -41,8 +41,20 @@ def add_subtopics_to_task(task, parent_topic, user, max_duration=None):
             # Default if user preferences aren't set
             hours = 2.0 if not is_weekend else 3.0
         
-        # Convert hours to minutes and cap between 15-120 minutes
-        max_duration = min(max(int(hours * 60 * 0.5), 15), 120)
+        # Calculate one-third of the total study time (for 3 subjects)
+        # This ensures the 3 tasks will fit within the user's preferred study hours
+        subject_hours = hours / 3.0
+        
+        # Convert hours to minutes without an upper limit
+        # Just ensure it's at least 15 minutes to accommodate a single subtopic
+        max_duration = max(int(subject_hours * 60), 15)
+
+        # Set the task's total_duration to match the target duration
+        # This ensures that even if we don't add enough subtopics, the displayed duration is correct
+        task.total_duration = max_duration
+        
+        # If we're generating 3 tasks and each has exactly this duration,
+        # the total will match the user's study hour preference
     from app.models.curriculum import Subtopic
     from app.models.confidence import SubtopicConfidence
     import random
@@ -118,32 +130,26 @@ def add_subtopics_to_task(task, parent_topic, user, max_duration=None):
     # Update task description with subtopics
     update_task_description_with_subtopics(task, added_subtopics)
     
-    # Update total duration
-    task.update_total_duration()
+    # Force the total duration to match the target duration, even if subtopics don't add up exactly
+    task.total_duration = max_duration
+    db.session.commit()
     
     return task
 
 def update_task_description_with_subtopics(task, added_subtopics):
     """
-    Update a task's description to include the list of subtopics.
+    Previously used to update task description with subtopics.
+    Now a no-op since subtopics are displayed in their own containers.
     
     Args:
         task: Task object to update
         added_subtopics: List of subtopic titles that were added to the task
         
     Returns:
-        None (updates task in place)
+        None
     """
-    if not added_subtopics:
-        return
-    
-    # Update task description to include the subtopics
-    task_description = task.description or ""
-    subtopics_list = ", ".join(added_subtopics)
-    
-    # Update task description
-    task.description = f"{task_description}\n\nSubtopics: {subtopics_list}"
-    db.session.commit()
+    # No longer adding subtopics to description since they're displayed separately
+    return
 
 def get_subtopics_by_topic(user, topic_id=None):
     """

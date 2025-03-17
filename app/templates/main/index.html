@@ -50,6 +50,19 @@
                         <div class="task-content">
                             <p class="task-description">{{ task.description | safe }}</p>
                             
+                            <!-- Add subtopics container -->
+                            <div class="task-subtopics">
+                                {% for subtask in task.subtopics %}
+                                <div class="subtopic-container">
+                                    <div class="subtopic-header">
+                                        <span class="subtopic-title">{{ subtask.subtopic.title }}</span>
+                                        <span class="subtopic-duration">{{ subtask.duration }} min</span>
+                                    </div>
+                                    <div class="subtopic-description">{{ subtask.subtopic.description }}</div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
                             <div class="task-meta">
                                 <span>
                                     <i class="fas fa-book"></i> {{ task.subject.title }}
@@ -100,6 +113,19 @@
                         
                         <div class="task-content">
                             <p class="task-description">{{ task.description | safe }}</p>
+                            
+                            <!-- Add subtopics container -->
+                            <div class="task-subtopics">
+                                {% for subtask in task.subtopics %}
+                                <div class="subtopic-container">
+                                    <div class="subtopic-header">
+                                        <span class="subtopic-title">{{ subtask.subtopic.title }}</span>
+                                        <span class="subtopic-duration">{{ subtask.duration }} min</span>
+                                    </div>
+                                    <div class="subtopic-description">{{ subtask.subtopic.description }}</div>
+                                </div>
+                                {% endfor %}
+                            </div>
                             
                             <div class="task-meta">
                                 <span>
