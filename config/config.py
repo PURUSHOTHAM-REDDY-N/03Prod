@@ -32,57 +32,8 @@ class ProductionConfig(Config):
     """Production configuration using Railway database."""
     DEBUG = False
     TESTING = False
-    
-    # Database configuration with fallback
-    database_url = os.environ.get('DATABASE_URL')
-    
-    # Check for Railway's public database URL first (more reliable for external connections)
-    database_public_url = os.environ.get('DATABASE_PUBLIC_URL')
-    if database_public_url:
-        # Format the URL for pg8000 driver (compatible with Python 3.13)
-        if database_public_url.startswith('postgres://'):
-            database_public_url = database_public_url.replace('postgres://', 'postgresql+pg8000://', 1)
-        elif database_public_url.startswith('postgresql://'):
-            database_public_url = database_public_url.replace('postgresql://', 'postgresql+pg8000://', 1)
-        SQLALCHEMY_DATABASE_URI = database_public_url
-    # Check if we're on Railway by looking for specific environment variables
-    elif os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('RAILWAY_SERVICE_ID'):
-        # Try to use DATABASE_URL directly if it's available
-        if database_url:
-            # Format the URL for pg8000 driver (compatible with Python 3.13)
-            if database_url.startswith('postgres://'):
-                database_url = database_url.replace('postgres://', 'postgresql+pg8000://', 1)
-            elif database_url.startswith('postgresql://'):
-                database_url = database_url.replace('postgresql://', 'postgresql+pg8000://', 1)
-            SQLALCHEMY_DATABASE_URI = database_url
-        else:
-            # Fallback to constructing from environment variables
-            pg_user = os.environ.get('PGUSER', 'postgres')
-            pg_password = os.environ.get('PGPASSWORD', '')
-            
-            # Try different host options
-            pg_host = os.environ.get('PGHOST', 'localhost')
-            
-            # Option 2: If available, try using the TCP proxy domain from Railway
-            railway_tcp_proxy = os.environ.get('RAILWAY_TCP_PROXY_DOMAIN')
-            if railway_tcp_proxy:
-                pg_host = railway_tcp_proxy
-            
-            pg_port = os.environ.get('PGPORT', '5432')
-            pg_database = os.environ.get('PGDATABASE', 'railway')
-            
-            # Construct the SQLAlchemy URI using environment variables and pg8000 driver
-            SQLALCHEMY_DATABASE_URI = f"postgresql+pg8000://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_database}"
-    elif database_url:
-        # Format the URL for pg8000 driver for non-Railway deployments
-        if database_url.startswith('postgres://'):
-            database_url = database_url.replace('postgres://', 'postgresql+pg8000://', 1)
-        elif database_url.startswith('postgresql://'):
-            database_url = database_url.replace('postgresql://', 'postgresql+pg8000://', 1)
-        SQLALCHEMY_DATABASE_URI = database_url
-    else:
-        # Fallback to SQLite if no DATABASE_URL is provided
-        SQLALCHEMY_DATABASE_URI = 'sqlite:///app.db'
+    # Use Railway database
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
 
 
 # Configuration dictionary to easily access different configs
