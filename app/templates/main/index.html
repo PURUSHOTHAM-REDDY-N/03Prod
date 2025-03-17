@@ -2,6 +2,95 @@
 
 {% block title %}Dashboard | Timetable{% endblock %}
 
+{% block styles %}
+<style>
+    .pomodoro-compact {
+        max-width: 100%;
+        margin-left: auto;
+        margin-right: auto;
+        background-color: var(--accent-color);
+        border: 1px solid rgba(255, 149, 0, 0.5);
+        position: relative;
+    }
+    
+    .pomodoro-compact h2 {
+        color: white;
+    }
+    
+    .pomodoro-compact p {
+        color: rgba(255, 255, 255, 0.8);
+    }
+    
+    .pomodoro-compact select {
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        background-color: rgba(255, 255, 255, 0.9);
+    }
+    
+    #start-pomodoro-btn {
+        background-color: white;
+        color: var(--accent-color);
+        border: none;
+        font-weight: bold;
+        transition: all 0.3s ease;
+    }
+    
+    #start-pomodoro-btn:hover {
+        background-color: rgba(255, 255, 255, 0.9);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .hide-pomodoro-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        color: white;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        z-index: 5;
+    }
+    
+    .hide-pomodoro-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .pomodoro-content {
+        transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease, padding 0.3s ease;
+        max-height: 500px;
+        overflow: hidden;
+        opacity: 1;
+    }
+    
+    .pomodoro-content.hidden {
+        max-height: 0;
+        opacity: 0;
+        margin: 0;
+        padding: 0;
+    }
+    
+    @media (min-width: 768px) {
+        .pomodoro-compact {
+            max-width: calc(100% - 2rem);
+            border-radius: 10px;
+        }
+    }
+    
+    @media (min-width: 992px) {
+        .pomodoro-compact {
+            max-width: calc(100% - 4rem);
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-between items-center mb-3">
     <h1 class="page-title">Today's Tasks</h1>
@@ -37,13 +126,7 @@
                         <div class="task-header">
                             <h3 class="task-title">{{ task.title }}</h3>
                             <span class="task-badge">
-                                {% if task.task_type is string %}
-                                    {{ task.task_type }}
-                                {% elif task.task_type is mapping and task.task_type.name %}
-                                    {{ task.task_type.name }}
-                                {% else %}
-                                    Task
-                                {% endif %}
+                                {{ task.task_type.name|capitalize }}
                             </span>
                         </div>
                         
@@ -84,16 +167,34 @@
                             </div>
                         </div>
                     </div>
-                    <button class="btn btn-info pomodoro-button w-full mt-1" onclick="startPomodoroWithTask('{{ task.id }}', '{{ task.title }}')">
-                        <i class="fas fa-clock"></i> Start Pomodoro Timer
-                    </button>
                 </div>
             {% endfor %}
         </div>
     {% endif %}
     
+    {% if active_tasks %}
+        <div class="glass-card mt-3 mb-3 pomodoro-compact" id="pomodoro-container">
+            <button class="hide-pomodoro-btn" id="toggle-pomodoro-btn" title="Hide Pomodoro Timer">
+                <i class="fas fa-minus"></i>
+            </button>
+            <h2 class="mb-2"><i class="fas fa-clock"></i> Pomodoro Timer</h2>
+            <div class="pomodoro-content" id="pomodoro-content">
+                <p class="text-secondary mb-2">Focus on a task with the Pomodoro technique</p>
+                <select id="pomodoro-task-select" class="form-control mb-2">
+                    <option value="">Select a task to focus on...</option>
+                    {% for task in active_tasks %}
+                    <option value="{{ task.id }}" data-title="{{ task.title }}">{{ task.title }}</option>
+                    {% endfor %}
+                </select>
+                <button id="start-pomodoro-btn" class="btn w-full">
+                    <i class="fas fa-play-circle"></i> Start Focused Timer
+                </button>
+            </div>
+        </div>
+    {% endif %}
+    
     {% if completed_tasks %}
-        <h2 class="mt-4 mb-2">Completed Tasks</h2>
+        <h2 class="mt-4 mb-2"><a href="{{ url_for('main.progress') }}" class="text-accent" style="text-decoration: none; display: flex; align-items: center;">Completed Tasks <i class="fas fa-arrow-right" style="margin-left: 8px; font-size: 0.8em;"></i></a></h2>
         <div class="grid">
             {% for task in completed_tasks %}
                 <div class="task-container">
@@ -101,13 +202,7 @@
                         <div class="task-header">
                             <h3 class="task-title">{{ task.title }}</h3>
                             <span class="task-badge">
-                                {% if task.task_type is string %}
-                                    {{ task.task_type }}
-                                {% elif task.task_type is mapping and task.task_type.name %}
-                                    {{ task.task_type.name }}
-                                {% else %}
-                                    Task
-                                {% endif %}
+                                {{ task.task_type.name|capitalize }}
                             </span>
                         </div>
                         
@@ -152,7 +247,7 @@
 
 {% block scripts %}
 <script>
-// Start Pomodoro with selected task
+// Function for starting Pomodoro with selected task
 function startPomodoroWithTask(taskId, taskTitle) {
     // Save task to localStorage for the Pomodoro page
     localStorage.setItem('currentPomodoroTask', taskId);
@@ -167,6 +262,57 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelector('button[data-href]').addEventListener('click', function() {
             location.href = this.getAttribute('data-href');
         });
+        
+        // Toggle Pomodoro Timer visibility
+        const togglePomodoroBtn = document.getElementById('toggle-pomodoro-btn');
+        const pomodoroContent = document.getElementById('pomodoro-content');
+        
+        if (togglePomodoroBtn && pomodoroContent) {
+            // Check if previously hidden
+            const isPomodoroHidden = localStorage.getItem('pomodoroHidden') === 'true';
+            
+            if (isPomodoroHidden) {
+                pomodoroContent.classList.add('hidden');
+                togglePomodoroBtn.innerHTML = '<i class="fas fa-plus"></i>';
+                togglePomodoroBtn.title = "Show Pomodoro Timer";
+            }
+            
+            togglePomodoroBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (pomodoroContent.classList.contains('hidden')) {
+                    pomodoroContent.classList.remove('hidden');
+                    togglePomodoroBtn.innerHTML = '<i class="fas fa-minus"></i>';
+                    togglePomodoroBtn.title = "Hide Pomodoro Timer";
+                    localStorage.setItem('pomodoroHidden', 'false');
+                } else {
+                    pomodoroContent.classList.add('hidden');
+                    togglePomodoroBtn.innerHTML = '<i class="fas fa-plus"></i>';
+                    togglePomodoroBtn.title = "Show Pomodoro Timer";
+                    localStorage.setItem('pomodoroHidden', 'true');
+                }
+            });
+        }
+        
+        // Setup Pomodoro Timer button
+        const startPomodoroBtn = document.getElementById('start-pomodoro-btn');
+        const pomodoroTaskSelect = document.getElementById('pomodoro-task-select');
+        
+        if (startPomodoroBtn && pomodoroTaskSelect) {
+            startPomodoroBtn.addEventListener('click', function() {
+                const selectedOption = pomodoroTaskSelect.options[pomodoroTaskSelect.selectedIndex];
+                const taskId = pomodoroTaskSelect.value;
+                
+                if (!taskId) {
+                    alert('Please select a task first');
+                    return;
+                }
+                
+                const taskTitle = selectedOption.getAttribute('data-title');
+                startPomodoroWithTask(taskId, taskTitle);
+            });
+        }
         
         // Refresh tasks button
         const refreshTasksBtn = document.getElementById('refresh-tasks-btn');
