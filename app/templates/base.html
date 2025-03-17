@@ -181,6 +181,13 @@
 
         // Task actions
         function completeTask(taskId) {
+            console.log("TASK COMPLETION STARTED!", new Date().toISOString());
+            
+            // Ensure we don't navigate away from page
+            if (event) {
+                event.preventDefault();
+            }
+            
             // Add completion animation to the task card
             const taskCard = document.getElementById(`task-${taskId}`);
             if (taskCard) {
@@ -228,9 +235,19 @@
                 console.error("Error completing task:", error);
                 showToast('Network error occurred', 'error');
             });
+            
+            // Prevent form submission or link navigation
+            return false;
         }
         
         function skipTask(taskId) {
+            // Prevent default navigation
+            if (event) {
+                event.preventDefault();
+            }
+            
+            console.log("SKIP TASK STARTED!", new Date().toISOString());
+            
             const taskCard = document.getElementById(`task-${taskId}`);
             if (taskCard) {
                 // Add slide-out animation
@@ -247,20 +264,36 @@
             })
             .then(response => response.json())
             .then(data => {
+                console.log("API skip response:", data);
+                
                 if (data.success) {
                     showToast('Task skipped, generating a new one...', 'info');
                     
-                    // Replace task with new one
-                    setTimeout(() => {
-                        location.reload(); // Simple reload for now
-                    }, 500);
+                    // Show confidence prompt if subtopics are returned
+                    if (data.subtopics && data.subtopics.length > 0) {
+                        console.log("Showing confidence prompt for skipped task subtopics:", data.subtopics);
+                        setTimeout(() => {
+                            showConfidencePrompt(taskId, data.subtopics);
+                        }, 600); // Wait until after the task card animation completes
+                    } else {
+                        console.log("No subtopics returned from skip API or empty array");
+                        // Reload page after a delay to show new task
+                        setTimeout(() => {
+                            location.reload();
+                        }, 500);
+                    }
                 } else {
                     showToast('Error skipping task', 'error');
+                    console.error("Task skip failed:", data.message || "Unknown error");
                 }
             })
             .catch(error => {
+                console.error("Error skipping task:", error);
                 showToast('Network error occurred', 'error');
             });
+            
+            // Prevent default link/form behavior
+            return false;
         }
         
         function showConfidencePrompt(taskId, subtopics) {
@@ -418,6 +451,8 @@
                     }
                 });
                 
+                console.log("Submitting confidence data:", data);
+                
                 // Send to API
                 fetch('/api/subtopics/update_confidence', {
                     method: 'POST',
@@ -426,7 +461,12 @@
                     },
                     body: JSON.stringify(data),
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(result => {
                     if (result.success) {
                         showToast('Confidence levels updated!', 'success');
@@ -437,7 +477,13 @@
                             // Refresh page to show updated task list
                             location.reload();
                         }, 300);
+                    } else {
+                        showToast('Error updating confidence: ' + (result.message || 'Unknown error'), 'error');
                     }
+                })
+                .catch(error => {
+                    console.error("Error updating confidence:", error);
+                    showToast('Network error occurred', 'error');
                 });
             };
             

@@ -9,6 +9,7 @@ from app.utils.task_generator import generate_replacement_task
 from app.routes.api.curriculum import curriculum_bp
 from app.routes.api.confidence import confidence_bp
 from app.models.confidence import SubtopicConfidence
+from app.utils.confidence_utils import update_subtopics_confidence_from_dict
 
 # Create blueprint
 api_bp = Blueprint('api', __name__)
@@ -68,6 +69,27 @@ def skip_task(task_id):
     if task.user_id != current_user.id:
         return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     
+    # Get subtopics in this task for confidence prompt before skipping
+    subtopics = []
+    for task_subtopic in task.subtopics:
+        subtopic = Subtopic.query.get(task_subtopic.subtopic_id)
+        if subtopic:
+            # Get current confidence
+            confidence = SubtopicConfidence.query.filter_by(
+                user_id=current_user.id,
+                subtopic_id=subtopic.id
+            ).first()
+            
+            confidence_level = confidence.confidence_level if confidence else 3
+            priority = confidence.priority if confidence else False
+            
+            subtopics.append({
+                'id': subtopic.id,
+                'title': subtopic.title,
+                'confidence': confidence_level,
+                'priority': priority
+            })
+    
     # Get subject ID for generating replacement
     subject_id = task.subject_id
     
@@ -102,7 +124,8 @@ def skip_task(task_id):
     return jsonify({
         'success': True,
         'message': 'Task skipped and replacement generated',
-        'task': task_data
+        'task': task_data,
+        'subtopics': subtopics
     })
 
 @api_bp.route('/tasks/refresh', methods=['POST'])
@@ -409,4 +432,40 @@ def update_dark_mode():
         'success': True,
         'message': f'Dark mode {"enabled" if dark_mode else "disabled"}',
         'dark_mode': dark_mode
+    })
+
+@api_bp.route('/subtopics/update_confidence', methods=['POST'])
+@login_required
+def update_subtopic_confidence():
+    """Update confidence for subtopics."""
+    if not request.is_json:
+        return jsonify({'success': False, 'message': 'Invalid request format'}), 400
+    
+    subtopic_data = request.json.get('subtopics', {})
+    
+    if not subtopic_data:
+        return jsonify({'success': False, 'message': 'No subtopic data provided'}), 400
+    
+    # Log the incoming data
+    print(f"Updating confidence for subtopics: {subtopic_data}")
+    
+    # Format for update function
+    formatted_data = {}
+    
+    for subtopic_id, data in subtopic_data.items():
+        confidence_level = data.get('confidence')
+        priority = data.get('priority', False)
+        
+        if confidence_level and 1 <= confidence_level <= 5:
+            formatted_data[int(subtopic_id)] = (confidence_level, priority)
+    
+    # Update confidences
+    success = update_subtopics_confidence_from_dict(current_user.id, formatted_data)
+    
+    if not success:
+        return jsonify({'success': False, 'message': 'Error updating confidences'}), 500
+    
+    return jsonify({
+        'success': True,
+        'message': f'Updated {len(formatted_data)} subtopic confidences'
     })
