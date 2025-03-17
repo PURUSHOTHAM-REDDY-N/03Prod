@@ -74,11 +74,11 @@
                         </div>
                         
                         <div class="task-actions">
-                            <button class="btn btn-primary w-full" onclick="completeTask('{{ task.id }}')">
+                            <button class="btn btn-primary w-full" onclick="event.preventDefault(); completeTask('{{ task.id }}')">
                                 <i class="fas fa-check"></i> Complete
                             </button>
                             <div class="d-flex gap-1 mt-1">
-                                <button class="btn btn-secondary flex-1" onclick="skipTask('{{ task.id }}')">
+                                <button class="btn btn-secondary flex-1" onclick="event.preventDefault(); skipTask('{{ task.id }}')">
                                     <i class="fas fa-forward"></i> Skip
                                 </button>
                             </div>
@@ -160,50 +160,6 @@ function startPomodoroWithTask(taskId, taskTitle) {
     
     // Navigate to the Pomodoro page
     window.location.href = "{{ url_for('main.pomodoro') }}";
-}
-
-// Complete a task
-function completeTask(taskId) {
-    fetch(`/api/tasks/complete/${taskId}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Error completing task: ' + (data.message || 'Unknown error'));
-        }
-    })
-    .catch(error => {
-        console.error('Error completing task:', error);
-        alert('Error completing task. Please try again.');
-    });
-}
-
-// Skip a task
-function skipTask(taskId) {
-    fetch(`/api/tasks/skip/${taskId}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('Error skipping task: ' + (data.message || 'Unknown error'));
-        }
-    })
-    .catch(error => {
-        console.error('Error skipping task:', error);
-        alert('Error skipping task. Please try again.');
-    });
 }
 
 document.addEventListener('DOMContentLoaded', function() {
