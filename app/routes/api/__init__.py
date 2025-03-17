@@ -8,6 +8,7 @@ from app.models.curriculum import Subtopic, Topic
 from app.utils.task_generator import generate_replacement_task
 from app.routes.api.curriculum import curriculum_bp
 from app.routes.api.confidence import confidence_bp
+from app.models.confidence import SubtopicConfidence
 
 # Create blueprint
 api_bp = Blueprint('api', __name__)
@@ -30,14 +31,25 @@ def complete_task(task_id):
     task.mark_completed()
     db.session.commit()
     
-    # Get subtopics in this task
+    # Get subtopics in this task for confidence prompt
     subtopics = []
     for task_subtopic in task.subtopics:
         subtopic = Subtopic.query.get(task_subtopic.subtopic_id)
         if subtopic:
+            # Get current confidence
+            confidence = SubtopicConfidence.query.filter_by(
+                user_id=current_user.id,
+                subtopic_id=subtopic.id
+            ).first()
+            
+            confidence_level = confidence.confidence_level if confidence else 3
+            priority = confidence.priority if confidence else False
+            
             subtopics.append({
                 'id': subtopic.id,
-                'title': subtopic.title
+                'title': subtopic.title,
+                'confidence': confidence_level,
+                'priority': priority
             })
     
     return jsonify({

@@ -102,8 +102,14 @@ class Task(db.Model):
         self.total_duration = total_duration
     
     def mark_completed(self):
-        """Mark the task as completed."""
+        """Mark the task as completed and load relationships."""
         self.completed_at = datetime.utcnow()
+        
+        # Ensure subtopics relationship is loaded
+        if not hasattr(self, '_subtopics_loaded'):
+            _ = self.subtopics  # Access relationship to load it
+            self._subtopics_loaded = True
+        
         db.session.commit()
     
     def mark_skipped(self):

@@ -635,13 +635,23 @@ header {
   cursor: pointer;
   opacity: 0.6;
   transition: all 0.2s;
+  border: 2px solid rgba(255, 255, 255, 0.3);
 }
 
 .confidence-option:hover,
 .confidence-option.selected {
   opacity: 1;
   transform: scale(1.1);
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
 }
+
+/* Confidence option colors */
+.confidence-option[data-value="1"] { background-color: var(--confidence-1); }
+.confidence-option[data-value="2"] { background-color: var(--confidence-2); }
+.confidence-option[data-value="3"] { background-color: var(--confidence-3); }
+.confidence-option[data-value="4"] { background-color: var(--confidence-4); }
+.confidence-option[data-value="5"] { background-color: var(--confidence-5); }
 
 /* Curriculum View */
 .curriculum-tree {
@@ -752,6 +762,8 @@ header {
 .text-success { color: var(--success-color); }
 .text-warning { color: var(--warning-color); }
 .text-error { color: var(--error-color); }
+.text-secondary { color: var(--text-secondary); }
+.text-small { font-size: 0.85rem; }
 
 .d-flex { display: flex; }
 .justify-between { justify-content: space-between; }
@@ -763,3 +775,4 @@ header {
 
 .w-full { width: 100%; }
 .h-full { height: 100%; }
+.p-2 { padding: 12px; }

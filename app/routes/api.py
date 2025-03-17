@@ -33,6 +33,11 @@ def complete_task(task_id):
     
     # Get subtopics in this task for confidence prompt
     subtopics = []
+    
+    # Get all the task's subtopics
+    if not task.subtopics or len(task.subtopics) == 0:
+        print(f"Task {task_id} has no subtopics associated with it")
+    
     for task_subtopic in task.subtopics:
         subtopic = Subtopic.query.get(task_subtopic.subtopic_id)
         if subtopic:
@@ -51,6 +56,12 @@ def complete_task(task_id):
                 'confidence': confidence_level,
                 'priority': priority
             })
+    
+    # Log what's being returned
+    if subtopics:
+        print(f"Returning {len(subtopics)} subtopics for task {task_id}")
+    else:
+        print(f"No subtopics found for task {task_id}")
     
     return jsonify({
         'success': True,

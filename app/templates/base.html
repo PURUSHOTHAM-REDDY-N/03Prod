@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Timetable{% endblock %}</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.svg') }}" type="image/svg+xml">
+    <link rel="alternate icon" href="{{ url_for('static', filename='images/favicon-light.svg') }}" type="image/svg+xml" media="(prefers-color-scheme: light)">
+    <link rel="alternate icon" href="{{ url_for('static', filename='images/favicon-dark.svg') }}" type="image/svg+xml" media="(prefers-color-scheme: dark)">
+    
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -181,6 +187,8 @@
                 taskCard.classList.add('completed');
             }
             
+            console.log(`Completing task ${taskId}`);
+            
             fetch(`/api/tasks/complete/${taskId}`, {
                 method: 'POST',
                 headers: {
@@ -189,6 +197,8 @@
             })
             .then(response => response.json())
             .then(data => {
+                console.log("API response:", data);
+                
                 if (data.success) {
                     // Show success toast
                     showToast('Task completed successfully!', 'success');
@@ -202,13 +212,20 @@
                     
                     // Show confidence prompt if subtopics are returned
                     if (data.subtopics && data.subtopics.length > 0) {
-                        showConfidencePrompt(taskId, data.subtopics);
+                        console.log("Showing confidence prompt for subtopics:", data.subtopics);
+                        setTimeout(() => {
+                            showConfidencePrompt(taskId, data.subtopics);
+                        }, 600); // Wait until after the task card animation completes
+                    } else {
+                        console.log("No subtopics returned from API or empty array:", data.subtopics);
                     }
                 } else {
                     showToast('Error completing task', 'error');
+                    console.error("Task completion failed:", data.message || "Unknown error");
                 }
             })
             .catch(error => {
+                console.error("Error completing task:", error);
                 showToast('Network error occurred', 'error');
             });
         }
@@ -247,26 +264,43 @@
         }
         
         function showConfidencePrompt(taskId, subtopics) {
+            // Guard clause: if no subtopics are provided, just return without showing modal
+            if (!subtopics || !Array.isArray(subtopics) || subtopics.length === 0) {
+                console.log("No subtopics provided to confidence prompt, skipping modal");
+                return;
+            }
+            
+            console.log(`Creating confidence modal for ${subtopics.length} subtopics`);
+            
             // Create modal overlay
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
+            modal.style.zIndex = '2000'; // Ensure highest z-index
             
             // Create modal content
             const modalContent = document.createElement('div');
             modalContent.className = 'modal-content glass-card glass-noise';
+            modalContent.style.zIndex = '2001'; // Ensure highest z-index
+            modalContent.style.maxHeight = '80vh';
+            modalContent.style.overflowY = 'auto';
             
             // Create modal header
             const modalHeader = document.createElement('div');
             modalHeader.innerHTML = `<h2 class="mb-2">Update Your Confidence</h2>
-                                    <p class="text-secondary mb-2">How confident do you feel about these subtopics?</p>`;
+                                    <p class="text-secondary mb-2">After completing this task, how confident do you feel about these subtopics?</p>`;
             
             // Create form
             const form = document.createElement('form');
             
             // Add subtopics
             subtopics.forEach(subtopic => {
+                if (!subtopic || !subtopic.id || !subtopic.title) {
+                    console.log("Invalid subtopic object:", subtopic);
+                    return; // Skip this iteration
+                }
+                
                 const subtopicDiv = document.createElement('div');
-                subtopicDiv.className = 'mb-2';
+                subtopicDiv.className = 'mb-2 glass-card p-2';
                 
                 const subtopicHeader = document.createElement('div');
                 subtopicHeader.className = 'd-flex justify-between items-center';
@@ -286,14 +320,22 @@
                 subtopicHeader.appendChild(priorityCheckbox);
                 subtopicDiv.appendChild(subtopicHeader);
                 
+                // Add confidence level label
+                const confidenceLabel = document.createElement('div');
+                confidenceLabel.className = 'mt-1 mb-1';
+                confidenceLabel.innerHTML = `<span class="confidence-label">Your confidence level:</span>`;
+                subtopicDiv.appendChild(confidenceLabel);
+                
                 // Confidence selector
                 const confidenceSelector = document.createElement('div');
                 confidenceSelector.className = 'confidence-selector';
                 
                 for (let i = 1; i <= 5; i++) {
                     const option = document.createElement('div');
-                    option.className = `confidence-option confidence-${i} ${i === subtopic.confidence ? 'selected' : ''}`;
+                    option.className = `confidence-option ${i === subtopic.confidence ? 'selected' : ''}`;
                     option.setAttribute('data-value', i);
+                    option.setAttribute('title', getConfidenceLabel(i));
+                    
                     option.onclick = function() {
                         // Remove selected class from all options
                         confidenceSelector.querySelectorAll('.confidence-option').forEach(opt => {
@@ -309,6 +351,28 @@
                 
                 subtopicDiv.appendChild(confidenceSelector);
                 
+                // Add confidence level text display
+                const confidenceText = document.createElement('div');
+                confidenceText.className = 'mt-1 text-small';
+                confidenceText.id = `confidence_text_${subtopic.id}`;
+                confidenceText.textContent = getConfidenceLabel(subtopic.confidence);
+                subtopicDiv.appendChild(confidenceText);
+                
+                // Update text when confidence changes
+                const updateConfidenceText = (level) => {
+                    const textEl = document.getElementById(`confidence_text_${subtopic.id}`);
+                    if (textEl) {
+                        textEl.textContent = getConfidenceLabel(parseInt(level));
+                    }
+                };
+                
+                // Add event listener to each option for updating text
+                confidenceSelector.querySelectorAll('.confidence-option').forEach(opt => {
+                    opt.addEventListener('click', () => {
+                        updateConfidenceText(opt.getAttribute('data-value'));
+                    });
+                });
+                
                 // Hidden input for form submission
                 const hiddenInput = document.createElement('input');
                 hiddenInput.type = 'hidden';
@@ -320,11 +384,25 @@
                 form.appendChild(subtopicDiv);
             });
             
+            // Add close button
+            const closeButton = document.createElement('button');
+            closeButton.type = 'button';
+            closeButton.className = 'btn btn-secondary mt-2';
+            closeButton.textContent = 'Close';
+            closeButton.style.marginRight = '10px';
+            closeButton.onclick = function() {
+                // Close modal
+                modal.classList.remove('active');
+                setTimeout(() => {
+                    document.body.removeChild(modal);
+                }, 300);
+            };
+            
             // Submit button
             const submitBtn = document.createElement('button');
             submitBtn.type = 'button';
             submitBtn.className = 'btn btn-primary mt-2';
-            submitBtn.textContent = 'Save';
+            submitBtn.textContent = 'Save & Continue';
             submitBtn.onclick = function() {
                 // Collect data
                 const data = {
@@ -332,10 +410,12 @@
                 };
                 
                 subtopics.forEach(subtopic => {
-                    data.subtopics[subtopic.id] = {
-                        confidence: parseInt(document.getElementById(`confidence_${subtopic.id}`).value),
-                        priority: document.querySelector(`input[name="priority_${subtopic.id}"]`).checked
-                    };
+                    if (subtopic && subtopic.id) {
+                        data.subtopics[subtopic.id] = {
+                            confidence: parseInt(document.getElementById(`confidence_${subtopic.id}`).value),
+                            priority: document.querySelector(`input[name="priority_${subtopic.id}"]`).checked
+                        };
+                    }
                 });
                 
                 // Send to API
@@ -349,46 +429,83 @@
                 .then(response => response.json())
                 .then(result => {
                     if (result.success) {
+                        showToast('Confidence levels updated!', 'success');
                         // Close modal
-                        document.body.removeChild(modal);
-                        // Refresh page to show updated task list
-                        location.reload();
+                        modal.classList.remove('active');
+                        setTimeout(() => {
+                            document.body.removeChild(modal);
+                            // Refresh page to show updated task list
+                            location.reload();
+                        }, 300);
                     }
                 });
             };
             
-            form.appendChild(submitBtn);
+            // Button container for alignment
+            const buttonContainer = document.createElement('div');
+            buttonContainer.className = 'd-flex justify-between mt-2';
+            buttonContainer.appendChild(closeButton);
+            buttonContainer.appendChild(submitBtn);
+            
+            form.appendChild(buttonContainer);
             modalContent.appendChild(modalHeader);
             modalContent.appendChild(form);
             modal.appendChild(modalContent);
             
-            // Add active class after a short delay to trigger animation
+            // Add to body and make visible
             document.body.appendChild(modal);
-            setTimeout(() => {
-                modal.classList.add('active');
-            }, 10);
+            
+            // Force reflow before adding active class for animation
+            void modal.offsetWidth;
+            
+            // Add active class to trigger animation
+            modal.classList.add('active');
+            
+            // Prevent background scrolling while modal is open
+            document.body.style.overflow = 'hidden';
+            
+            // Re-enable scrolling when modal is closed
+            closeButton.addEventListener('click', () => {
+                document.body.style.overflow = 'auto';
+            });
+            
+            submitBtn.addEventListener('click', () => {
+                document.body.style.overflow = 'auto';
+            });
+        }
+        
+        // Helper function for confidence level labels
+        function getConfidenceLabel(level) {
+            switch(level) {
+                case 1: return 'Very Low Confidence - Need to review completely';
+                case 2: return 'Low Confidence - Need significant practice';
+                case 3: return 'Medium Confidence - Could use more practice';
+                case 4: return 'High Confidence - Know it well';
+                case 5: return 'Very High Confidence - Complete mastery';
+                default: return 'Medium Confidence';
+            }
         }
     </script>
     
-{% block scripts %}{% endblock %}
-
-<script>
-    // Ensure proper scrolling behavior on all pages
-    document.addEventListener('DOMContentLoaded', function() {
-        // Use single scrollbar on the body only
-        document.documentElement.style.overflow = 'hidden';
-        document.documentElement.style.height = '100%';
-        document.body.style.overflowY = 'auto';
-        document.body.style.height = 'auto';
-        document.body.style.minHeight = '100vh';
-        
-        // Ensure content containers are scrollable
-        const container = document.querySelector('main.container');
-        if (container) {
-            container.style.overflow = 'visible';
-            container.style.height = 'auto';
-        }
-    });
-</script>
+    {% block scripts %}{% endblock %}
+    <script>
+        // Ensure proper scrolling behavior on all pages
+        document.addEventListener('DOMContentLoaded', function() {
+            // Use single scrollbar on the body only
+            document.documentElement.style.overflow = 'hidden';
+            document.documentElement.style.height = '100%';
+            document.body.style.overflowY = 'auto';
+            document.body.style.height = 'auto';
+            document.body.style.minHeight = '100vh';
+            
+            // Ensure content containers are scrollable
+            const container = document.querySelector('main.container');
+            if (container) {
+                container.style.overflow = 'visible';
+                container.style.height = 'auto';
+            }
+        });
+    </script>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 </body>
 </html>

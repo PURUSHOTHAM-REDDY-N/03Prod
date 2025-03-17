@@ -10,6 +10,7 @@ class SubtopicConfidence(db.Model):
     subtopic_id = db.Column(db.Integer, db.ForeignKey('subtopics.id'), nullable=False)
     confidence_level = db.Column(db.Integer, default=3)  # Default to 3 out of 5
     last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+    priority = db.Column(db.Boolean, default=False)  # Whether this subtopic is marked as priority
     
     # Using back_populates instead of backref per best practices
     user = db.relationship('User', back_populates='subtopic_confidences', lazy=True)
@@ -44,6 +45,11 @@ class SubtopicConfidence(db.Model):
     def calculate_weight(self):
         """Calculate priority weight using formula: (7 - confidence_level)²"""
         return (7 - self.confidence_level) ** 2
+    
+    def set_priority(self, priority_value):
+        """Set or unset the priority flag."""
+        self.priority = bool(priority_value)
+        self.last_updated = datetime.utcnow()
 
 class TopicConfidence(db.Model):
     """Model representing a user's confidence level for a specific topic."""
@@ -126,8 +132,9 @@ class TopicConfidence(db.Model):
             
         avg_confidence = total_confidence / count
         
-        # Convert to percentage (1-5 scale to 0-100%)
-        confidence_percent = (avg_confidence / 5.0) * 100.0
+        # Convert to percentage with adjusted scale where:
+        # 1/5 = 0%, 3/5 = 50%, 5/5 = 100%
+        confidence_percent = ((avg_confidence - 1) / 4.0) * 100.0
         
         return confidence_percent
     
