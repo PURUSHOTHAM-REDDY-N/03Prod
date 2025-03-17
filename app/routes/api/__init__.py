@@ -113,21 +113,34 @@ def refresh_tasks():
     
     db.session.commit()
     
-    # Calculate how many tasks to create
-    study_hours = current_user.study_hours_per_day
-    
-    # Weekend adjustment
-    if datetime.utcnow().weekday() >= 5:  # 5=Saturday, 6=Sunday
-        study_hours = current_user.weekend_study_hours
-    
-    # Approximately 1 task per 30 minutes of study time
-    num_tasks = max(1, int(study_hours * 2))
-    
-    # Generate new tasks
-    new_tasks = []
-    for _ in range(num_tasks):
-        task = generate_replacement_task(current_user)
-        if task:
+    try:
+        # Always generate exactly 3 tasks - one for each main subject category
+        # This ensures balanced coverage across Biology, Chemistry, and Psychology
+        from app.utils.optimization_tasks import generate_balanced_task_batch
+        tasks = generate_balanced_task_batch(current_user.id, count=3, max_per_subject=1)
+        
+        if not tasks:
+            # Fallback if balanced task generation failed
+            # Calculate how many tasks to create based on study hours
+            study_hours = current_user.study_hours_per_day
+            
+            # Weekend adjustment
+            if datetime.utcnow().weekday() >= 5:  # 5=Saturday, 6=Sunday
+                study_hours = current_user.weekend_study_hours
+            
+            # Approximately 1 task per 30 minutes of study time
+            num_tasks = max(1, int(study_hours * 2))
+            
+            # Generate new tasks using old method
+            tasks = []
+            for _ in range(num_tasks):
+                task = generate_replacement_task(current_user)
+                if task:
+                    tasks.append(task)
+        
+        # Format tasks for the API response
+        new_tasks = []
+        for task in tasks:
             new_tasks.append({
                 'id': task.id,
                 'title': task.title,
@@ -142,12 +155,19 @@ def refresh_tasks():
                     'name': task.task_type.name
                 }
             })
-    
-    return jsonify({
-        'success': True,
-        'message': f'Generated {len(new_tasks)} new tasks',
-        'tasks': new_tasks
-    })
+        
+        return jsonify({
+            'success': True,
+            'message': f'Generated {len(new_tasks)} new tasks',
+            'tasks': new_tasks
+        })
+    except Exception as e:
+        current_app.logger.error(f"Error in refresh_tasks: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error generating tasks: {str(e)}',
+            'tasks': []
+        }), 500
 
 @api_bp.route('/tasks/add_bonus', methods=['POST'])
 @login_required

@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+
 class Config:
     """Base configuration class."""
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
@@ -12,10 +13,12 @@ class Config:
     # Default to SQLite database for development simplicity
     SQLALCHEMY_DATABASE_URI = os.environ.get('LOCAL_DATABASE_URI', 'sqlite:///app.db')
 
+
 class DevelopmentConfig(Config):
     """Development configuration."""
     DEBUG = True
     TESTING = False
+
 
 class TestingConfig(Config):
     """Testing configuration."""
@@ -24,6 +27,7 @@ class TestingConfig(Config):
     # Use in-memory SQLite for testing
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
 
+
 class ProductionConfig(Config):
     """Production configuration using Railway database."""
     DEBUG = False
@@ -31,10 +35,6 @@ class ProductionConfig(Config):
     
     # Database configuration with fallback
     database_url = os.environ.get('DATABASE_URL')
-    
-    # Log the available environment variables for debugging
-    print(f"Environment variables: {list(os.environ.keys())}")
-    print(f"DATABASE_URL: {database_url}")
     
     # Check for Railway's public database URL first (more reliable for external connections)
     database_public_url = os.environ.get('DATABASE_PUBLIC_URL')
@@ -45,7 +45,6 @@ class ProductionConfig(Config):
         elif database_public_url.startswith('postgresql://'):
             database_public_url = database_public_url.replace('postgresql://', 'postgresql+pg8000://', 1)
         SQLALCHEMY_DATABASE_URI = database_public_url
-        print(f"Using Railway DATABASE_PUBLIC_URL: {database_public_url}")
     # Check if we're on Railway by looking for specific environment variables
     elif os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('RAILWAY_SERVICE_ID'):
         # Try to use DATABASE_URL directly if it's available
@@ -56,28 +55,24 @@ class ProductionConfig(Config):
             elif database_url.startswith('postgresql://'):
                 database_url = database_url.replace('postgresql://', 'postgresql+pg8000://', 1)
             SQLALCHEMY_DATABASE_URI = database_url
-            print(f"Using Railway DATABASE_URL directly: {database_url}")
         else:
             # Fallback to constructing from environment variables
             pg_user = os.environ.get('PGUSER', 'postgres')
             pg_password = os.environ.get('PGPASSWORD', '')
             
             # Try different host options
-            # Option 1: Use PGHOST environment variable (might be internal DNS that doesn't resolve)
             pg_host = os.environ.get('PGHOST', 'localhost')
             
             # Option 2: If available, try using the TCP proxy domain from Railway
             railway_tcp_proxy = os.environ.get('RAILWAY_TCP_PROXY_DOMAIN')
             if railway_tcp_proxy:
                 pg_host = railway_tcp_proxy
-                print(f"Using Railway TCP proxy domain: {railway_tcp_proxy}")
             
             pg_port = os.environ.get('PGPORT', '5432')
             pg_database = os.environ.get('PGDATABASE', 'railway')
             
             # Construct the SQLAlchemy URI using environment variables and pg8000 driver
             SQLALCHEMY_DATABASE_URI = f"postgresql+pg8000://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_database}"
-            print(f"Using constructed database URL from Railway environment variables: {SQLALCHEMY_DATABASE_URI}")
     elif database_url:
         # Format the URL for pg8000 driver for non-Railway deployments
         if database_url.startswith('postgres://'):
@@ -85,10 +80,8 @@ class ProductionConfig(Config):
         elif database_url.startswith('postgresql://'):
             database_url = database_url.replace('postgresql://', 'postgresql+pg8000://', 1)
         SQLALCHEMY_DATABASE_URI = database_url
-        print(f"Using database URL: {database_url}")
     else:
         # Fallback to SQLite if no DATABASE_URL is provided
-        print("No DATABASE_URL found, falling back to SQLite")
         SQLALCHEMY_DATABASE_URI = 'sqlite:///app.db'
 
 # Configuration dictionary to easily access different configs
@@ -99,9 +92,11 @@ config = {
     'default': DevelopmentConfig
 }
 
+
 def get_database_uri(environment='default'):
     """Helper function to get the correct database URI based on environment."""
     return config[environment].SQLALCHEMY_DATABASE_URI
+
 
 def configure_app(app, environment='default'):
     """Configure the Flask application with the specified environment."""

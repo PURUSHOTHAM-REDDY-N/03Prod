@@ -11,6 +11,7 @@ def select_weighted_topic(topics, user, subject_code):
     """
     Select a topic using confidence-based weighted selection.
     Uses the formula (7 - confidence_level)² to prioritize lower confidence topics.
+    Also avoids recently used topics to increase variety.
     
     Args:
         topics: List of Topic objects to choose from
@@ -36,16 +37,63 @@ def select_weighted_topic(topics, user, subject_code):
         # Create dictionary for quick lookup
         confidence_dict = {conf.topic_id: conf.confidence_percent for conf in confidence_data}
         
-        # If no confidence data exists, initialize with default weights
-        if not confidence_dict:
-            # Default to equal selection if no confidence data
-            return random.choice(topics)
+        # Check for recently used topics with much stricter filtering
+        from app.models.task import Task
+        from datetime import datetime, timedelta
+        
+        today = datetime.utcnow().date()
+        
+        # Get all tasks from today, both completed and active
+        todays_tasks = Task.query.filter(
+            Task.user_id == user.id,
+            Task.topic_id.in_(topic_ids),
+            Task.due_date == today
+        ).all()
+        
+        # Get tasks from the past 7 days
+        recent_date = datetime.utcnow() - timedelta(days=7)
+        recent_tasks = Task.query.filter(
+            Task.user_id == user.id,
+            Task.topic_id.in_(topic_ids),
+            Task.created_at >= recent_date
+        ).all()
+        
+        # Create sets of topic IDs to exclude
+        # First priority: exclude topics used today (strongest filter)
+        today_topic_ids = {task.topic_id for task in todays_tasks}
+        
+        # Second priority: exclude topics used in the past 7 days
+        recent_topic_ids = {task.topic_id for task in recent_tasks}
+        
+        # Get topics excluding today's topics
+        unused_today_topics = [topic for topic in topics if topic.id not in today_topic_ids]
+        
+        # If we have enough topics excluding today's, use those
+        if len(unused_today_topics) > 0:
+            candidate_topics = unused_today_topics
+        else:
+            # If filtering by today leaves us with nothing, try filtering only by completed tasks
+            completed_task_ids = {task.topic_id for task in recent_tasks if task.completed_at is not None}
+            topics_not_completed = [topic for topic in topics if topic.id not in completed_task_ids]
+            
+            if len(topics_not_completed) > 0:
+                candidate_topics = topics_not_completed
+            else:
+                # Last resort: use all topics
+                candidate_topics = topics
+        
+        # More randomization - shuffle the list to break predictable patterns
+        random.shuffle(candidate_topics)
+        
+        # If no confidence data exists or all confidence is equal, use random selection
+        if not confidence_dict or len(set(confidence_dict.values())) <= 1:
+            return random.choice(candidate_topics)
         
         # Apply weighting formula (7 - confidence_level)²
         # Higher weight = higher priority for selection
         topic_weights = []
         
-        for topic in topics:
+        for topic in candidate_topics:
             # Get confidence level (default to 3 if not found - 50% confidence)
             confidence_percent = confidence_dict.get(topic.id, 50.0)
             
@@ -58,14 +106,17 @@ def select_weighted_topic(topics, user, subject_code):
             
             topic_weights.append((topic, weight))
         
-        # Calculate total weight for normalization
-        total_weight = sum(weight for _, weight in topic_weights)
-        
-        # Handle edge case of zero total weight
-        if total_weight == 0:
+        # Choose a topic using weighted random selection
+        if not topic_weights:
+            # Fallback if weighting failed
             return random.choice(topics)
         
-        # Weighted random selection (roulette wheel)
+        # Rather than just taking the top few, use proper weighted random selection
+        total_weight = sum(weight for _, weight in topic_weights)
+        if total_weight == 0:
+            return random.choice(candidate_topics)
+            
+        # Weighted random selection
         r = random.uniform(0, total_weight)
         current_weight = 0
         
@@ -73,9 +124,9 @@ def select_weighted_topic(topics, user, subject_code):
             current_weight += weight
             if r <= current_weight:
                 return topic
-        
-        # Fallback (should not be reached)
-        return topics[0]
+                
+        # Fallback - should rarely be reached
+        return random.choice(candidate_topics)
         
     except Exception as e:
         # Log the error but don't crash - fall back to random selection
