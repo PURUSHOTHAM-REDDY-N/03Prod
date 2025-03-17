@@ -26,7 +26,7 @@
   --success-color-rgb: 76, 175, 80;
   
   /* Glass texture */
-  --glass-texture: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  --glass-texture: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='5' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
 }
 
 [data-theme="dark"] {
@@ -60,16 +60,17 @@ html, body {
   padding: 0;
   width: 100%;
   overflow-x: hidden;
+  scroll-behavior: smooth;
 }
 
 html {
   height: 100%;
-  overflow-y: hidden;
 }
 
 body {
-  min-height: 100%;
+  min-height: 100vh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* For smooth scrolling on iOS */
 }
 
 * {
@@ -319,7 +320,6 @@ header {
   max-width: 1200px;
   margin: 40px auto;
   padding: 0 20px;
-  overflow-y: auto;
   height: auto;
 }
 
@@ -345,13 +345,10 @@ header {
 
 @media (max-width: 768px) {
   body {
-    overflow-y: auto;
     -webkit-overflow-scrolling: touch; /* For smooth scrolling on iOS */
   }
   
   .container {
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
     margin: 20px auto;
     padding: 0 10px;
   }

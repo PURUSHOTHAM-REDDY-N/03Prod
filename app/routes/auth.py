@@ -38,9 +38,9 @@ def login():
 @auth_bp.route('/logout')
 @login_required
 def logout():
-    """User logout route."""
+    """Logout route that logs the user out and redirects to the login page."""
     logout_user()
-    flash('You have been logged out.', 'success')
+    flash('You have been logged out.', 'info')
     return redirect(url_for('auth.login'))
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
@@ -102,43 +102,3 @@ def register():
         return redirect(url_for('auth.login'))
     
     return render_template('auth/register.html')
-
-@auth_bp.route('/test-login')
-def test_login():
-    """Quick login route for testing/development purposes."""
-    # Create or get test user
-    test_user = User.query.filter_by(username='testuser').first()
-    
-    if not test_user:
-        # Create test user
-        test_user = User(username='testuser', password='testpassword')
-        db.session.add(test_user)
-        db.session.commit()
-        
-        # Initialize task type preferences
-        task_types = TaskType.query.all()
-        for task_type in task_types:
-            # Create global preference for this task type
-            preference = TaskTypePreference(
-                user_id=test_user.id,
-                task_type_id=task_type.id,
-                is_enabled=True
-            )
-            db.session.add(preference)
-        
-        db.session.commit()
-    
-    # Login the test user
-    login_user(test_user)
-    test_user.update_last_login()
-    
-    # Check if curriculum data has been imported
-    from app.models.curriculum import Subject
-    subjects_exist = Subject.query.first() is not None
-    
-    if not subjects_exist:
-        flash('Warning: No curriculum data has been imported. Please run "flask import-data" first.', 'warning')
-    else:
-        flash('Logged in as test user', 'info')
-    
-    return redirect(url_for('main.index'))

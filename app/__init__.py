@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask_bcrypt import Bcrypt
+from flask_caching import Cache
 from config.config import configure_app
 
 # Initialize extensions
@@ -10,6 +11,7 @@ db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
 bcrypt = Bcrypt()
+cache = Cache()
 
 def create_app(config_name='default'):
     """Create and configure the Flask application."""
@@ -23,6 +25,17 @@ def create_app(config_name='default'):
     migrate.init_app(app, db)
     login_manager.init_app(app)
     bcrypt.init_app(app)
+    
+    # Configure caching
+    cache_config = {
+        'CACHE_TYPE': app.config.get('CACHE_TYPE', 'SimpleCache'),
+        'CACHE_DEFAULT_TIMEOUT': app.config.get('CACHE_TIMEOUT', 300)
+    }
+    cache.init_app(app, config=cache_config)
+    
+    # Enable static file caching
+    from app.utils.cache_utils import cache_static_files
+    cache_static_files(app, max_age=app.config.get('STATIC_CACHE_TIMEOUT', 86400))
     
     # Register CLI commands
     from app.cli import register_commands

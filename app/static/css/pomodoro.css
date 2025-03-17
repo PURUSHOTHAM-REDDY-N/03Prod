@@ -1,13 +1,10 @@
 /* Pomodoro Timer Styles */
-body {
-    overflow-y: auto !important;
-    height: auto !important;
-    min-height: 100vh !important;
+body.pomodoro-page {
+    min-height: 100vh;
 }
 
 html, body {
     overflow-x: hidden;
-    overflow-y: auto;
 }
 
 .pomodoro-container {
@@ -147,6 +144,27 @@ html, body {
     background: rgba(255, 255, 255, 0.1);
     color: var(--text-color);
     text-align: center;
+}
+
+.time-display-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.time-display-group label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.time-display {
+    width: 100px;
+    padding: 8px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-color);
+    text-align: center;
+    font-weight: 500;
 }
 
 .task-integration {
@@ -304,11 +322,11 @@ html, body {
         gap: 15px;
     }
     
-    .time-input-group {
+    .time-input-group, .time-display-group {
         width: 100%;
     }
     
-    .time-input {
+    .time-input, .time-display {
         width: 100%;
     }
 }

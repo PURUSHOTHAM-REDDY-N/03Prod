@@ -17,7 +17,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     {% block head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
 <header>
         <nav class="navbar glass-noise">
             <a href="{{ url_for('main.index') }}" class="navbar-brand">Timetable</a>
@@ -535,23 +535,24 @@
     
     {% block scripts %}{% endblock %}
     <script>
-        // Ensure proper scrolling behavior on all pages
-        document.addEventListener('DOMContentLoaded', function() {
-            // Use single scrollbar on the body only
-            document.documentElement.style.overflow = 'hidden';
-            document.documentElement.style.height = '100%';
-            document.body.style.overflowY = 'auto';
-            document.body.style.height = 'auto';
-            document.body.style.minHeight = '100vh';
-            
-            // Ensure content containers are scrollable
-            const container = document.querySelector('main.container');
-            if (container) {
-                container.style.overflow = 'visible';
-                container.style.height = 'auto';
-            }
-        });
+        // Scrolling behavior is now handled through CSS
     </script>
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/cache-manager.js') }}"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/js/sw.js')
+                    .then(registration => {
+                        console.log('Service Worker registered with scope:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.error('Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
 </body>
 </html>

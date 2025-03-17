@@ -2,12 +2,13 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_required, current_user
 from datetime import datetime, timedelta
 from app import db
-from app.models.curriculum import Subject, Topic, Subtopic
+from app.models.curriculum import Subject, Topic, Subtopic, Exam
 from app.models.task import Task, TaskType, TaskTypePreference
 from app.utils.task_generator import generate_task_for_subject, get_subject_distribution_for_week
 from app.utils.analytics_utils import prepare_analytics_data, get_chart_data_for_dashboard
 from app.utils.optimization_utils import get_optimized_subject_distribution, generate_tasks_in_batch
 from app.utils.optimization_tasks import generate_balanced_task_batch
+from app.utils.cache_utils import cache_response, add_cache_headers
 import os
 import random
 
@@ -18,6 +19,11 @@ main_bp = Blueprint('main', __name__)
 @login_required
 def index():
     """Main dashboard with daily tasks."""
+    response = _get_index_data()
+    return add_cache_headers(response, max_age=60)  # Short cache for dynamic dashboard
+
+def _get_index_data():
+    """Get data for the index page - separate function to support caching."""
     # Get today's active tasks
     today = datetime.utcnow().date()
     
@@ -33,7 +39,7 @@ def index():
         Task.user_id == current_user.id,
         Task.due_date == today,
         Task.completed_at.isnot(None)
-    ).all()
+    ).order_by(Task.completed_at.desc()).limit(3).all()
     
     # Generate tasks if none exist
     if not active_tasks and not completed_tasks:
@@ -97,15 +103,24 @@ def index():
 @login_required
 def calendar():
     """Calendar view with exam dates."""
-    # Get all tasks for the current month
-    now = datetime.utcnow()
-    start_date = datetime(now.year, now.month, 1).date()
+    # Get month/year from query parameters for navigation, default to current
+    month = request.args.get('month', type=int)
+    year = request.args.get('year', type=int)
     
-    # Calculate end date (last day of current month)
-    if now.month == 12:
-        end_date = datetime(now.year + 1, 1, 1).date() - timedelta(days=1)
+    # Default to current date if not provided
+    now = datetime.utcnow()
+    if not month or not year:
+        month = now.month
+        year = now.year
+    
+    # Calculate start and end dates for the selected month
+    start_date = datetime(year, month, 1).date()
+    
+    # Calculate end date (last day of selected month)
+    if month == 12:
+        end_date = datetime(year + 1, 1, 1).date() - timedelta(days=1)
     else:
-        end_date = datetime(now.year, now.month + 1, 1).date() - timedelta(days=1)
+        end_date = datetime(year, month + 1, 1).date() - timedelta(days=1)
     
     # Get tasks within the date range
     tasks = Task.query.filter(
@@ -113,20 +128,48 @@ def calendar():
         Task.due_date.between(start_date, end_date)
     ).all()
     
-    # Organize tasks by date
+    # Get exams that fall within this month
+    exams = Exam.query.join(Exam.subject).filter(
+        Exam.exam_date.between(start_date, end_date)
+    ).all()
+    
+    # Calculate previous and next month for navigation
+    prev_month = month - 1 if month > 1 else 12
+    prev_year = year if month > 1 else year - 1
+    
+    next_month = month + 1 if month < 12 else 1
+    next_year = year if month < 12 else year + 1
+    
+    # Organize tasks and exams by date
     calendar_data = {}
     
+    # Add tasks to calendar data
     for task in tasks:
         date_str = task.due_date.strftime('%Y-%m-%d')
         if date_str not in calendar_data:
-            calendar_data[date_str] = []
+            calendar_data[date_str] = {'tasks': [], 'exams': []}
         
-        calendar_data[date_str].append(task)
+        calendar_data[date_str]['tasks'].append(task)
+    
+    # Add exams to calendar data
+    for exam in exams:
+        date_str = exam.exam_date.strftime('%Y-%m-%d')
+        if date_str not in calendar_data:
+            calendar_data[date_str] = {'tasks': [], 'exams': []}
+        
+        calendar_data[date_str]['exams'].append(exam)
+    
+    # Pass the calendar date for display
+    calendar_date = datetime(year, month, 1).date()
     
     return render_template('main/calendar.html', 
-                           calendar_data=calendar_data,
-                           current_date=now.date(),
-                           timedelta=timedelta)
+                          calendar_data=calendar_data,
+                          current_date=calendar_date,
+                          timedelta=timedelta,
+                          prev_month=prev_month,
+                          prev_year=prev_year,
+                          next_month=next_month,
+                          next_year=next_year)
 
 @main_bp.route('/curriculum')
 @login_required
@@ -322,7 +365,10 @@ def pomodoro():
         Task.skipped_at.is_(None)
     ).all()
     
-    return render_template('main/pomodoro.html', active_tasks=active_tasks)
+    # Add cache version to prevent browser caching of static files
+    cache_version = int(datetime.utcnow().timestamp())
+    
+    return render_template('main/pomodoro.html', active_tasks=active_tasks, cache_version=cache_version)
 
 @main_bp.route('/first-login-setup', methods=['GET', 'POST'])
 @login_required
@@ -390,3 +436,8 @@ def first_login_setup():
     return render_template('main/first_login_setup.html',
                            subjects=subjects,
                            task_types=task_types)
+
+@main_bp.route('/offline')
+def offline():
+    """Serve the offline page."""
+    return render_template('offline.html')

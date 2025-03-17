@@ -73,3 +73,24 @@ class Subtopic(db.Model):
     
     def __repr__(self):
         return f"<Subtopic {self.title}>"
+
+class Exam(db.Model):
+    """Model representing exam dates for subjects."""
+    __tablename__ = 'exams'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    subject_id = db.Column(db.Integer, db.ForeignKey('subjects.id'), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    exam_date = db.Column(db.Date, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship to subject
+    subject = db.relationship('Subject', backref=db.backref('exams', lazy=True))
+    
+    def __init__(self, subject_id, title, exam_date):
+        self.subject_id = subject_id
+        self.title = title
+        self.exam_date = exam_date
+    
+    def __repr__(self):
+        return f"<Exam {self.title} for subject_id={self.subject_id} on {self.exam_date}>"

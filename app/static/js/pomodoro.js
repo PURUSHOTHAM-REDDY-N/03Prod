@@ -26,16 +26,6 @@ class PomodoroTimer {
         this.progressBar = null;
         this.sessionDots = null;
         
-        // Audio elements
-        this.startSound = new Audio('/static/sounds/start.mp3');
-        this.pauseSound = new Audio('/static/sounds/pause.mp3');
-        this.completeSound = new Audio('/static/sounds/complete.mp3');
-        
-        // Initialize volume
-        this.startSound.volume = 0.5;
-        this.pauseSound.volume = 0.5;
-        this.completeSound.volume = 0.5;
-        
         // Bind methods to prevent 'this' context issues
         this.startTimer = this.startTimer.bind(this);
         this.pauseTimer = this.pauseTimer.bind(this);
@@ -60,14 +50,17 @@ class PomodoroTimer {
         this.progressBar = document.getElementById('timer-progress-bar');
         this.sessionDots = document.querySelectorAll('.session-dot');
         
-        // Settings inputs
+        // Settings inputs and displays
         this.pomodoroInput = document.getElementById('pomodoro-minutes');
-        this.shortBreakInput = document.getElementById('short-break-minutes');
-        this.longBreakInput = document.getElementById('long-break-minutes');
-        this.sessionsInput = document.getElementById('total-sessions');
+        this.shortBreakDisplay = document.getElementById('short-break-display');
+        this.longBreakDisplay = document.getElementById('long-break-display');
+        this.sessionsDisplay = document.getElementById('sessions-display');
         
         // Task integration
         this.taskSelect = document.getElementById('task-select');
+        
+        // Calculate and update display values based on focus time
+        this.calculateTimerValues();
         
         // Initialize display
         this.updateDisplay();
@@ -86,18 +79,10 @@ class PomodoroTimer {
         }
         
         // Settings listeners
-        const settingsInputs = [
-            this.pomodoroInput,
-            this.shortBreakInput,
-            this.longBreakInput,
-            this.sessionsInput
-        ];
-        
-        settingsInputs.forEach(input => {
-            if (input) {
-                input.addEventListener('change', this.updateSettings);
-            }
-        });
+        if (this.pomodoroInput) {
+            this.pomodoroInput.addEventListener('change', this.updateSettings);
+            this.pomodoroInput.addEventListener('input', this.updateSettings);
+        }
         
         // Task selection listener
         if (this.taskSelect) {
@@ -115,7 +100,13 @@ class PomodoroTimer {
         if (this.isRunning) return;
         
         this.isRunning = true;
-        this.startSound.play().catch(e => console.log('Error playing sound:', e));
+        
+        // Play start sound with our improved sound system
+        if (window.PomodoroSounds) {
+            window.PomodoroSounds.playStart();
+        } else {
+            console.warn('PomodoroSounds not loaded');
+        }
         
         // Update UI
         this.timerDisplay.classList.add('running');
@@ -156,7 +147,13 @@ class PomodoroTimer {
         if (!this.isRunning) return;
         
         this.isRunning = false;
-        this.pauseSound.play().catch(e => console.log('Error playing sound:', e));
+        
+        // Play pause sound with our improved sound system
+        if (window.PomodoroSounds) {
+            window.PomodoroSounds.playPause();
+        } else {
+            console.warn('PomodoroSounds not loaded');
+        }
         
         // Update UI
         this.timerDisplay.classList.remove('running');
@@ -175,6 +172,9 @@ class PomodoroTimer {
     resetTimer() {
         // Clear interval
         clearInterval(this.interval);
+        
+        // Make sure values are calculated properly before resetting
+        this.calculateTimerValues();
         
         // Reset state
         this.isRunning = false;
@@ -239,8 +239,12 @@ class PomodoroTimer {
         // Clear interval
         clearInterval(this.interval);
         
-        // Play sound
-        this.completeSound.play().catch(e => console.log('Error playing sound:', e));
+        // Play complete sound with our improved sound system
+        if (window.PomodoroSounds) {
+            window.PomodoroSounds.playComplete();
+        } else {
+            console.warn('PomodoroSounds not loaded');
+        }
         
         // Show notification
         this.showNotification(
@@ -318,28 +322,78 @@ class PomodoroTimer {
     }
     
     /**
+     * Calculate timer values based on focus time
+     */
+    calculateTimerValues() {
+        console.log('Calculating timer values based on focus time:', this.originalMinutes);
+        
+        // Using the 5:1:3 ratio (focus:short break:long break)
+        // Short break is 1/5 of focus time, minimum 1 minute
+        this.breakMinutes = Math.max(1, Math.round(this.originalMinutes / 5));
+        
+        // Long break is 3/5 of focus time, minimum 3 minutes
+        this.longBreakMinutes = Math.max(3, Math.round((this.originalMinutes / 5) * 3));
+        
+        // Sessions are calculated based on focus time: 1 session per 25 minutes, min 2, max 6
+        this.totalSessions = Math.max(2, Math.min(6, Math.round(this.originalMinutes / 25) + 2));
+        
+        console.log('Calculated values - Short break:', this.breakMinutes, 'Long break:', this.longBreakMinutes, 'Sessions:', this.totalSessions);
+        
+        // Get references to display elements if not already available
+        if (!this.shortBreakDisplay) {
+            this.shortBreakDisplay = document.getElementById('short-break-display');
+        }
+        
+        if (!this.longBreakDisplay) {
+            this.longBreakDisplay = document.getElementById('long-break-display');
+        }
+        
+        if (!this.sessionsDisplay) {
+            this.sessionsDisplay = document.getElementById('sessions-display');
+        }
+        
+        // Update display elements
+        if (this.shortBreakDisplay) {
+            this.shortBreakDisplay.textContent = `${this.breakMinutes} min`;
+            console.log('Updated short break display to:', this.breakMinutes);
+        } else {
+            console.warn('Short break display element not found');
+        }
+        
+        if (this.longBreakDisplay) {
+            this.longBreakDisplay.textContent = `${this.longBreakMinutes} min`;
+            console.log('Updated long break display to:', this.longBreakMinutes);
+        } else {
+            console.warn('Long break display element not found');
+        }
+        
+        if (this.sessionsDisplay) {
+            this.sessionsDisplay.textContent = this.totalSessions;
+            console.log('Updated sessions display to:', this.totalSessions);
+        } else {
+            console.warn('Sessions display element not found');
+        }
+    }
+    
+    /**
      * Update timer settings
      */
     updateSettings() {
         // Get values from inputs (with validation)
         if (this.pomodoroInput) {
             this.originalMinutes = Math.max(1, parseInt(this.pomodoroInput.value) || 25);
-        }
-        
-        if (this.shortBreakInput) {
-            this.breakMinutes = Math.max(1, parseInt(this.shortBreakInput.value) || 5);
-        }
-        
-        if (this.longBreakInput) {
-            this.longBreakMinutes = Math.max(1, parseInt(this.longBreakInput.value) || 15);
-        }
-        
-        if (this.sessionsInput) {
-            this.totalSessions = Math.max(1, parseInt(this.sessionsInput.value) || 4);
             
-            // Update session dots
-            this.createSessionDots();
+            // Update minutes immediately if not in a break
+            if (!this.isBreak) {
+                this.minutes = this.originalMinutes;
+            }
         }
+        
+        // Calculate other values based on focus time
+        this.calculateTimerValues();
+        
+        // Update session dots
+        this.createSessionDots();
         
         // Reset timer with new settings
         this.resetTimer();
@@ -398,15 +452,12 @@ class PomodoroTimer {
             
             // Update instance variables
             this.originalMinutes = settings.pomodoroMinutes || 25;
-            this.breakMinutes = settings.shortBreakMinutes || 5;
-            this.longBreakMinutes = settings.longBreakMinutes || 15;
-            this.totalSessions = settings.totalSessions || 4;
             
-            // Update input fields if they exist
+            // Update input field
             if (this.pomodoroInput) this.pomodoroInput.value = this.originalMinutes;
-            if (this.shortBreakInput) this.shortBreakInput.value = this.breakMinutes;
-            if (this.longBreakInput) this.longBreakInput.value = this.longBreakMinutes;
-            if (this.sessionsInput) this.sessionsInput.value = this.totalSessions;
+            
+            // Calculate other values based on focus time
+            this.calculateTimerValues();
             
             // Reset timer with loaded settings
             this.resetTimer();
@@ -582,19 +633,54 @@ class PomodoroTimer {
 
 // Initialize timer when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    const pomodoroTimer = new PomodoroTimer();
-    pomodoroTimer.initialize();
-    
-    // Load saved settings
-    pomodoroTimer.loadSettings();
-    
-    // Load saved task
-    const savedTaskId = localStorage.getItem('currentPomodoroTask');
-    if (savedTaskId && pomodoroTimer.taskSelect) {
-        pomodoroTimer.taskSelect.value = savedTaskId;
-        pomodoroTimer.currentTaskId = savedTaskId;
+    try {
+        const pomodoroTimer = new PomodoroTimer();
+        pomodoroTimer.initialize();
+        
+        // Force a refresh of the UI
+        setTimeout(() => {
+            // Load saved settings
+            pomodoroTimer.loadSettings();
+            
+            // Make sure values are calculated and displayed
+            pomodoroTimer.calculateTimerValues();
+            
+            // Show a debug message in console
+            console.log('Pomodoro timer initialized and refreshed');
+            
+            // Try direct DOM updates as a fallback
+            try {
+                // Get the values
+                const shortBreak = Math.max(1, Math.round(pomodoroTimer.originalMinutes / 5));
+                const longBreak = Math.max(3, Math.round((pomodoroTimer.originalMinutes / 5) * 3));
+                const sessions = Math.max(2, Math.min(6, Math.round(pomodoroTimer.originalMinutes / 25) + 2));
+                
+                // Update DOM directly
+                const shortBreakElement = document.getElementById('short-break-display');
+                if (shortBreakElement) shortBreakElement.textContent = `${shortBreak} min`;
+                
+                const longBreakElement = document.getElementById('long-break-display');
+                if (longBreakElement) longBreakElement.textContent = `${longBreak} min`;
+                
+                const sessionsElement = document.getElementById('sessions-display');
+                if (sessionsElement) sessionsElement.textContent = sessions;
+                
+                console.log('Direct DOM update completed');
+            } catch (err) {
+                console.error('Error during direct DOM update:', err);
+            }
+        }, 500);
+        
+        // Load saved task
+        const savedTaskId = localStorage.getItem('currentPomodoroTask');
+        if (savedTaskId && pomodoroTimer.taskSelect) {
+            pomodoroTimer.taskSelect.value = savedTaskId;
+            pomodoroTimer.currentTaskId = savedTaskId;
+        }
+        
+        // Make timer available globally for debugging
+        window.pomodoroTimer = pomodoroTimer;
+    } catch (err) {
+        console.error('Failed to initialize pomodoro timer:', err);
     }
-    
-    // Make timer available globally for debugging
-    window.pomodoroTimer = pomodoroTimer;
 });

@@ -6,13 +6,13 @@
 <div class="d-flex justify-between items-center mb-3">
     <h1 class="page-title">Calendar</h1>
     <div>
-        <button class="btn btn-secondary">
+        <a href="{{ url_for('main.calendar', month=prev_month, year=prev_year) }}" class="btn btn-secondary">
             <i class="fas fa-chevron-left"></i>
-        </button>
+        </a>
         <span class="mx-2">{{ current_date.strftime('%B %Y') }}</span>
-        <button class="btn btn-secondary">
+        <a href="{{ url_for('main.calendar', month=next_month, year=next_year) }}" class="btn btn-secondary">
             <i class="fas fa-chevron-right"></i>
-        </button>
+        </a>
     </div>
 </div>
 
@@ -48,14 +48,56 @@
                             <div class="calendar-date">{{ day_num }}</div>
                             
                             {% if date_str in calendar_data %}
-                                <div class="calendar-events">
-                                    {% for task in calendar_data[date_str] %}
-                                        <div class="calendar-event glass-card" style="--event-color: var(--accent-color);">
-                                            <div class="calendar-event-title">{{ task.title }}</div>
-                                            <div class="calendar-event-meta">
-                                                <span>{{ task.subject.title }}</span>
-                                                <span>{{ task.task_type.name }}</span>
+                                {% if calendar_data[date_str].exams %}
+                                    <div class="calendar-exams">
+                                        {% for exam in calendar_data[date_str].exams %}
+                                            <div class="calendar-exam">
+                                                <div class="calendar-exam-title">
+                                                    <i class="fas fa-graduation-cap exam-icon"></i>
+                                                    <span>{{ exam.title }}</span>
+                                                </div>
+                                                <div class="calendar-exam-subject">{{ exam.subject.title }}</div>
                                             </div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                
+                                <div class="calendar-events">
+                                    {% set task_by_subject = {} %}
+                                    
+                                    {% for task in calendar_data[date_str].tasks %}
+                                        {% if task.subject.title not in task_by_subject %}
+                                            {% set _ = task_by_subject.update({task.subject.title: {'tasks': [], 'subtopics': {}}}) %}
+                                        {% endif %}
+                                        {% set _ = task_by_subject[task.subject.title].tasks.append(task) %}
+                                        
+                                        {% for task_subtopic in task.subtopics %}
+                                            {% set subtopic = task_subtopic.subtopic %}
+                                            {% if subtopic.topic.title not in task_by_subject[task.subject.title].subtopics %}
+                                                {% set _ = task_by_subject[task.subject.title].subtopics.update({subtopic.topic.title: []}) %}
+                                            {% endif %}
+                                            {% set _ = task_by_subject[task.subject.title].subtopics[subtopic.topic.title].append(subtopic) %}
+                                        {% endfor %}
+                                    {% endfor %}
+                                    
+                                    {% for subject, details in task_by_subject.items() %}
+                                        <div class="calendar-event glass-card" style="--event-color: var(--accent-color);">
+                                            <div class="calendar-event-title">{{ subject }}</div>
+                                            
+                                            {% for topic, subtopics in details.subtopics.items() %}
+                                                <div class="calendar-topic">
+                                                    <div class="calendar-topic-title" onclick="toggleSubtopics(this)">
+                                                        <i class="fas fa-caret-right"></i> {{ topic }}
+                                                    </div>
+                                                    <div class="calendar-subtopics" style="display: none;">
+                                                        {% for subtopic in subtopics %}
+                                                            <div class="calendar-subtopic">
+                                                                <span class="subtopic-bullet">•</span> {{ subtopic.title }}
+                                                            </div>
+                                                        {% endfor %}
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
                                         </div>
                                     {% endfor %}
                                 </div>
@@ -73,10 +115,11 @@
 <style>
     .calendar-cell {
         flex: 1;
-        min-height: 100px;
+        min-height: 120px;
         border: 1px solid var(--border-color);
         padding: 8px;
         position: relative;
+        overflow: auto;
     }
     
     .calendar-header .calendar-cell {
@@ -143,5 +186,87 @@
     .mx-2 {
         margin: 0 10px;
     }
+    
+    .calendar-exams {
+        margin-top: 30px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .calendar-exam {
+        padding: 5px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        border-left: 3px solid #e74c3c;
+        background-color: rgba(231, 76, 60, 0.1);
+    }
+    
+    .calendar-exam-title {
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .exam-icon {
+        color: #e74c3c;
+    }
+    
+    .calendar-exam-subject {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+    
+    .calendar-topic {
+        margin-top: 5px;
+    }
+    
+    .calendar-topic-title {
+        font-size: 0.8rem;
+        color: var(--text-primary);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .calendar-topic-title i {
+        transition: transform 0.2s;
+    }
+    
+    .calendar-topic-title.expanded i {
+        transform: rotate(90deg);
+    }
+    
+    .calendar-subtopics {
+        padding-left: 15px;
+    }
+    
+    .calendar-subtopic {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin: 3px 0;
+    }
+    
+    .subtopic-bullet {
+        color: var(--accent-color);
+        margin-right: 2px;
+    }
 </style>
+
+<script>
+    function toggleSubtopics(element) {
+        const subtopicsEl = element.nextElementSibling;
+        const isExpanded = element.classList.contains('expanded');
+        
+        if (isExpanded) {
+            subtopicsEl.style.display = 'none';
+            element.classList.remove('expanded');
+        } else {
+            subtopicsEl.style.display = 'block';
+            element.classList.add('expanded');
+        }
+    }
+</script>
 {% endblock %}

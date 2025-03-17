@@ -2,6 +2,8 @@
 
 {% block title %}Pomodoro Timer | Timetable{% endblock %}
 
+{% block body_class %}pomodoro-page{% endblock %}
+
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pomodoro.css') }}">
 <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -69,25 +71,53 @@
     <div class="timer-settings">
         <div class="time-input-group">
             <label for="pomodoro-minutes">Focus Time (min)</label>
-            <input type="number" id="pomodoro-minutes" class="time-input" value="25" min="1" max="60">
+            <input type="number" id="pomodoro-minutes" class="time-input" value="25" min="1" max="60" 
+                   oninput="updateTimerValues(this.value)">
         </div>
         
-        <div class="time-input-group">
-            <label for="short-break-minutes">Short Break (min)</label>
-            <input type="number" id="short-break-minutes" class="time-input" value="5" min="1" max="30">
+        <div class="time-display-group">
+            <label>Short Break</label>
+            <div id="short-break-display" class="time-display">5 min</div>
         </div>
         
-        <div class="time-input-group">
-            <label for="long-break-minutes">Long Break (min)</label>
-            <input type="number" id="long-break-minutes" class="time-input" value="15" min="1" max="60">
+        <div class="time-display-group">
+            <label>Long Break</label>
+            <div id="long-break-display" class="time-display">15 min</div>
         </div>
         
-        <div class="time-input-group">
-            <label for="total-sessions">Sessions</label>
-            <input type="number" id="total-sessions" class="time-input" value="4" min="1" max="10">
+        <div class="time-display-group">
+            <label>Sessions</label>
+            <div id="sessions-display" class="time-display">4</div>
         </div>
     </div>
 </div>
+
+<script>
+    // Direct inline update function to avoid caching issues
+    function updateTimerValues(focusTime) {
+        focusTime = parseInt(focusTime) || 25;
+        
+        // Calculate values using 5:1:3 ratio
+        const shortBreak = Math.max(1, Math.round(focusTime / 5));
+        const longBreak = Math.max(3, Math.round((focusTime / 5) * 3));
+        const sessions = Math.max(2, Math.min(6, Math.round(focusTime / 25) + 2));
+        
+        // Update display elements
+        document.getElementById('short-break-display').textContent = shortBreak + ' min';
+        document.getElementById('long-break-display').textContent = longBreak + ' min';
+        document.getElementById('sessions-display').textContent = sessions;
+        
+        console.log('Inline update - Focus:', focusTime, 
+                   'Short:', shortBreak, 
+                   'Long:', longBreak, 
+                   'Sessions:', sessions);
+    }
+    
+    // Call once to initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        updateTimerValues(document.getElementById('pomodoro-minutes').value);
+    });
+</script>
 
 <div class="glass-card">
     <h2 class="mb-2">How to Use the Pomodoro Technique</h2>
@@ -110,35 +140,20 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/pomodoro.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pomodoro-sounds.js', v=cache_version) }}"></script>
+<script src="{{ url_for('static', filename='js/pomodoro.js', v=cache_version) }}"></script>
 
 <script>
-    // Create directory for sound files if not exists
+    // Initialize audio context on page load
     document.addEventListener('DOMContentLoaded', function() {
-        // Fallback sound handling
-        const sounds = ['start', 'pause', 'complete'];
-        sounds.forEach(sound => {
-            const audioElement = document.createElement('audio');
-            audioElement.id = `${sound}-sound`;
-            audioElement.preload = 'auto';
-            
-            // Try loading MP3 or use fallback
-            audioElement.innerHTML = `
-                <source src="/static/sounds/${sound}.mp3" type="audio/mpeg">
-                <source src="https://assets.mixkit.co/sfx/preview/${getDefaultSoundId(sound)}.mp3" type="audio/mpeg">
-            `;
-            
-            document.body.appendChild(audioElement);
-        });
-        
-        // Get default sound IDs from mixkit.co for fallback
-        function getDefaultSoundId(soundType) {
-            switch(soundType) {
-                case 'start': return '1322'; // Positive notification
-                case 'pause': return '2869'; // Click sound
-                case 'complete': return '978'; // Achievement sound
-                default: return '1322';
-            }
+        // Initialize audio system when user interacts with timer controls
+        const timerControls = document.querySelector('.timer-controls');
+        if (timerControls) {
+            timerControls.addEventListener('click', function() {
+                if (window.PomodoroSounds && window.PomodoroSounds.initAudio) {
+                    window.PomodoroSounds.initAudio();
+                }
+            });
         }
     });
 </script>
