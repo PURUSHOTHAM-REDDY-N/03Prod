@@ -84,6 +84,7 @@ class ProductionConfig(Config):
         # Fallback to SQLite if no DATABASE_URL is provided
         SQLALCHEMY_DATABASE_URI = 'sqlite:///app.db'
 
+
 # Configuration dictionary to easily access different configs
 config = {
     'development': DevelopmentConfig,
