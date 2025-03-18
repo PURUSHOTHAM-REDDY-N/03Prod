@@ -117,6 +117,42 @@ Tasks are generated based on:
 5. Task types enabled by the user
 6. Upcoming exam dates
 
+## API Routes
+
+The application provides a RESTful API for interacting with the platform programmatically.
+
+### Task Management
+
+- `GET /api/tasks` - Get all tasks for the current user
+- `POST /api/tasks/complete/<task_id>` - Mark a task as completed
+- `POST /api/tasks/skip/<task_id>` - Skip a task and generate a replacement
+- `POST /api/tasks/refresh` - Regenerate all tasks for today
+- `POST /api/tasks/add_bonus` - Add an additional task
+- `POST /api/tasks/add_for_subtopic` - Add a task for a specific subtopic
+- `POST /api/tasks/practice_subtopic` - Create a practice task for a subtopic
+- `POST /api/tasks/start/<task_id>` - Mark a task as in progress (for Pomodoro timer)
+
+### Curriculum
+
+- `GET /api/curriculum/subjects` - Get all subjects
+- `GET /api/curriculum/subject/<subject_id>/topics` - Get topics for a subject
+- `GET /api/curriculum/topic/<topic_id>/subtopics` - Get subtopics for a topic
+- `GET /api/curriculum/search` - Search curriculum items
+
+### Confidence Management
+
+- `GET /api/confidence/user/data` - Get all confidence data for the current user
+- `GET /api/confidence/user/subtopic/<subtopic_id>` - Get confidence for a specific subtopic
+- `PUT /api/confidence/user/subtopic/<subtopic_id>` - Update confidence for a specific subtopic
+- `GET /api/confidence/user/topic/<topic_id>` - Get confidence for a specific topic
+- `POST /api/confidence/user/initialize` - Initialize confidence data for all subjects
+
+### User Preferences
+
+- `POST /api/update-dark-mode` - Toggle dark mode setting
+- `GET /api/pomodoro/stats` - Get Pomodoro timer statistics
+- `GET /api/task_types` - Get all available task types
+
 ## Development
 
 To run the application in development mode:
