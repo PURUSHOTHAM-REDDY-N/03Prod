@@ -163,8 +163,8 @@ def refresh_tasks():
     if not available_subjects:
         available_subjects = all_subjects
     
-    # If we have more than 3 subjects, randomly pick 3 different ones
-    random.shuffle(available_subjects)
+    # Instead of randomly selecting subjects, take the latest 3
+    # Remove the random shuffle and just take the first 3 subjects
     subject_sample = available_subjects[:min(3, len(available_subjects))]
     
     # Always generate exactly 3 tasks - one for each main subject category
