@@ -1,7 +1,7 @@
-from flask import Blueprint, jsonify, request, current_app, send_from_directory
+from flask import Blueprint, jsonify, request, current_app, send_from_directory, render_template, session
 import os
 from flask_login import login_required, current_user
-from datetime import datetime
+from datetime import datetime, timedelta
 from app import db
 from app.models.task import Task, TaskSubtopic, TaskType
 from app.models.curriculum import Subtopic, Topic, Subject
@@ -10,9 +10,10 @@ from app.utils.confidence_utils import update_subtopic_confidence, update_subtop
 from app.utils.task_generator import generate_replacement_task, generate_task_for_subject
 from app.utils.analytics_utils import ConfidenceAnalytics
 from app.utils.optimization_tasks import generate_balanced_task_batch
+from app.utils.task_generator_main import generate_task_for_subject
 
 # Create blueprint
-api_bp = Blueprint('api', __name__)
+api_bp = Blueprint('api', __name__, url_prefix='/api')
 
 @api_bp.route('/tasks/complete/<int:task_id>', methods=['POST'])
 @login_required
@@ -163,7 +164,6 @@ def refresh_tasks():
         available_subjects = all_subjects
     
     # If we have more than 3 subjects, randomly pick 3 different ones
-    import random
     random.shuffle(available_subjects)
     subject_sample = available_subjects[:min(3, len(available_subjects))]
     
@@ -583,4 +583,166 @@ def update_dark_mode():
         'success': True,
         'message': f'Dark mode {"enabled" if dark_mode else "disabled"}',
         'dark_mode': dark_mode
+    })
+
+@api_bp.route('/curriculum/hierarchy', methods=['GET'])
+@login_required
+def get_curriculum_hierarchy():
+    """Get the curriculum hierarchy for custom task creation."""
+    # Get all subjects
+    subjects = Subject.query.all()
+    
+    result = []
+    for subject in subjects:
+        subject_data = {
+            'id': subject.id,
+            'title': subject.title,
+            'topics': []
+        }
+        
+        # Get topics for this subject
+        topics = Topic.query.filter_by(subject_id=subject.id).all()
+        for topic in topics:
+            topic_data = {
+                'id': topic.id,
+                'title': topic.title,
+                'subtopics': []
+            }
+            
+            # Get subtopics for this topic
+            subtopics = Subtopic.query.filter_by(topic_id=topic.id).all()
+            for subtopic in subtopics:
+                topic_data['subtopics'].append({
+                    'id': subtopic.id,
+                    'title': subtopic.title,
+                    'duration': subtopic.estimated_duration
+                })
+                
+            subject_data['topics'].append(topic_data)
+        
+        result.append(subject_data)
+        
+    return jsonify({
+        'success': True,
+        'hierarchy': result
+    })
+
+@api_bp.route('/tasks/create_custom', methods=['POST'])
+@login_required
+def create_custom_task():
+    """Create a custom task with selected subject, topic, and subtopics."""
+    if not request.is_json:
+        return jsonify({
+            'success': False,
+            'message': 'Invalid request format'
+        }), 400
+        
+    data = request.json
+    subject_id = data.get('subject_id')
+    topic_id = data.get('topic_id')
+    subtopic_ids = data.get('subtopic_ids', [])
+    task_type_id = data.get('task_type_id')
+    
+    # Validate required fields
+    if not subject_id or not topic_id or not subtopic_ids or not task_type_id:
+        return jsonify({
+            'success': False,
+            'message': 'Missing required fields'
+        }), 400
+        
+    try:
+        # Get the subject and topic
+        subject = Subject.query.get(subject_id)
+        topic = Topic.query.get(topic_id)
+        
+        if not subject or not topic:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid subject or topic'
+            }), 400
+            
+        # Create a new task
+        new_task = Task(
+            user_id=current_user.id,
+            subject_id=subject_id,
+            topic_id=topic_id,
+            task_type_id=task_type_id,
+            title=f"{subject.title}: {topic.title}",
+            description=f"Custom task for {topic.title}",
+            due_date=datetime.utcnow().date()
+        )
+        
+        db.session.add(new_task)
+        db.session.flush()  # Flush to get the new task ID
+        
+        # Add selected subtopics to the task
+        total_duration = 0
+        subtopic_titles = []
+        
+        for subtopic_id in subtopic_ids:
+            subtopic = Subtopic.query.get(subtopic_id)
+            if subtopic:
+                # Add subtopic to task
+                task_subtopic = TaskSubtopic(
+                    task_id=new_task.id,
+                    subtopic_id=subtopic_id,
+                    duration=subtopic.estimated_duration
+                )
+                db.session.add(task_subtopic)
+                
+                total_duration += subtopic.estimated_duration
+                subtopic_titles.append(subtopic.title)
+        
+        # Update task description and duration
+        new_task.description = f"Custom task covering: {', '.join(subtopic_titles)}"
+        new_task.total_duration = total_duration
+        
+        db.session.commit()
+        
+        # Format task data for response
+        task_data = {
+            'id': new_task.id,
+            'title': new_task.title,
+            'description': new_task.description,
+            'duration': new_task.total_duration,
+            'subject': {
+                'id': subject.id,
+                'title': subject.title
+            },
+            'task_type': {
+                'id': new_task.task_type_id,
+                'name': new_task.task_type.name
+            }
+        }
+        
+        return jsonify({
+            'success': True,
+            'message': 'Custom task created',
+            'task': task_data
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'message': f'Error creating task: {str(e)}'
+        }), 500
+
+@api_bp.route('/task_types', methods=['GET'])
+@login_required
+def get_task_types():
+    """Get all task types."""
+    task_types = TaskType.query.all()
+    
+    result = []
+    for task_type in task_types:
+        result.append({
+            'id': task_type.id,
+            'name': task_type.name,
+            'description': task_type.description
+        })
+        
+    return jsonify({
+        'success': True,
+        'task_types': result
     })

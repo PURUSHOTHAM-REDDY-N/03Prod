@@ -50,10 +50,12 @@ def create_app(config_name='default'):
     from app.routes.main import main_bp
     from app.routes.api import api_bp
     from app.routes.curriculum import curriculum
+    from app.routes.api.curriculum import curriculum_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(curriculum, url_prefix='/curriculum')
+    app.register_blueprint(curriculum_bp, url_prefix='/api/curriculum')
     
     return app

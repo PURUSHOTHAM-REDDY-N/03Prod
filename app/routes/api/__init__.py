@@ -15,7 +15,7 @@ from app.utils.confidence_utils import update_subtopics_confidence_from_dict
 api_bp = Blueprint('api', __name__)
 
 # Register blueprints with API
-api_bp.register_blueprint(curriculum_bp)
+# api_bp.register_blueprint(curriculum_bp)  # Comment this out to avoid double registration
 api_bp.register_blueprint(confidence_bp)
 
 @api_bp.route('/tasks/complete/<int:task_id>', methods=['POST'])

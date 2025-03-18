@@ -11,6 +11,11 @@ from app.utils.optimization_tasks import generate_balanced_task_batch
 from app.utils.cache_utils import cache_response, add_cache_headers
 import os
 import random
+import stripe
+import json
+
+# Set Stripe API key
+stripe.api_key = "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"
 
 # Create blueprint
 main_bp = Blueprint('main', __name__)
@@ -242,6 +247,14 @@ def progress():
 @login_required
 def settings():
     """User settings page."""
+    payment_status = request.args.get('payment')
+    payment_message = None
+    
+    if payment_status == 'success':
+        payment_message = 'Thank you for your donation!'
+    elif payment_status == 'cancelled':
+        payment_message = 'Donation cancelled. You can try again anytime.'
+    
     if request.method == 'POST':
         # Update study preferences
         study_hours = request.form.get('study_hours', type=float)
@@ -314,8 +327,60 @@ def settings():
     # Get task types
     task_types = TaskType.query.all()
     
-    # Get subjects
-    subjects = Subject.query.all()
+    # Get subjects - filter out duplicates
+    subjects_query = Subject.query.all()
+    
+    # Create a filtered list that removes subjects with duplicate course codes
+    unique_subjects = {}
+    # First, sort subjects by priority - subjects with course codes first
+    subjects_with_codes = []
+    generic_subjects = []
+    
+    for subject in subjects_query:
+        if '(' in subject.title and ')' in subject.title:
+            subjects_with_codes.append(subject)
+        else:
+            generic_subjects.append(subject)
+    
+    # Process subjects with course codes first
+    for subject in subjects_with_codes:
+        code_part = subject.title.split('(')[-1].split(')')[0]
+        if code_part:
+            course_code = code_part
+            # Check if title contains year information
+            year_info = None
+            if "Year 12" in subject.title:
+                year_info = "Year 12"
+            elif "Year 13" in subject.title:
+                year_info = "Year 13"
+            
+            # Create a composite key that includes year information if available
+            composite_key = course_code
+            if year_info:
+                composite_key = f"{course_code}_{year_info}"
+            
+            # Store by composite key to preserve year distinction
+            if composite_key not in unique_subjects:
+                unique_subjects[composite_key] = subject
+    
+    # Then process generic subjects, only add if base name doesn't exist
+    for subject in generic_subjects:
+        base_name = subject.title.lower().strip()
+        
+        # Check if this is a generic version of a subject we already have
+        should_add = True
+        for key, existing_subject in unique_subjects.items():
+            if base_name in existing_subject.title.lower():
+                # This is a generic version of a subject we already have
+                should_add = False
+                break
+        
+        if should_add:
+            # Only add if not a duplicate
+            unique_subjects[base_name] = subject
+    
+    # Convert dictionary to list for template
+    subjects = list(unique_subjects.values())
     
     # Get task type preferences
     global_preferences = {}
@@ -349,7 +414,8 @@ def settings():
                            task_types=task_types,
                            subjects=subjects,
                            global_preferences=global_preferences,
-                           subject_preferences=subject_preferences)
+                           subject_preferences=subject_preferences,
+                           payment_message=payment_message)
 
 @main_bp.route('/pomodoro')
 @login_required
@@ -441,3 +507,35 @@ def first_login_setup():
 def offline():
     """Serve the offline page."""
     return render_template('offline.html')
+
+@main_bp.route('/create-checkout-session', methods=['POST'])
+def create_checkout_session():
+    """Create a Stripe checkout session for donations."""
+    try:
+        data = request.json
+        amount = int(data.get('amount', 500))  # Default to £5 if no amount provided
+        
+        # Create checkout session
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[
+                {
+                    'price_data': {
+                        'currency': 'gbp',
+                        'product_data': {
+                            'name': 'Donation to Timetable App',
+                            'description': 'Thanks for supporting the Timetable app!',
+                        },
+                        'unit_amount': amount,  # Amount in pennies
+                    },
+                    'quantity': 1,
+                },
+            ],
+            mode='payment',
+            success_url=request.host_url + 'settings?payment=success',
+            cancel_url=request.host_url + 'settings?payment=cancelled',
+        )
+        
+        return jsonify({'id': checkout_session.id})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

@@ -22,10 +22,27 @@ def import_curriculum_data():
         
         # Import the data within a transaction
         for subject_name, subject_data in curriculum_data.items():
-            # Check if subject already exists (to avoid duplicates)
-            existing_subject = Subject.query.filter_by(title=subject_data.get('Title', subject_name)).first()
+            subject_title = subject_data.get('Title', subject_name)
+            
+            # Improved duplicate checking - match by title or by course code
+            existing_subject = None
+            
+            # Check for exact title match
+            existing_subject = Subject.query.filter_by(title=subject_title).first()
+            
+            # If not found by exact title, try to match by course code
+            if not existing_subject and '(' in subject_title and ')' in subject_title:
+                # Extract course code like H420, H432, etc.
+                course_code = subject_title.split('(')[-1].split(')')[0]
+                if course_code:
+                    # Find any subject with the same course code
+                    for subject in Subject.query.all():
+                        if course_code in subject.title:
+                            existing_subject = subject
+                            break
             
             if existing_subject:
+                print(f"Skipping duplicate subject: {subject_title}")
                 continue
                 
             # Create the subject

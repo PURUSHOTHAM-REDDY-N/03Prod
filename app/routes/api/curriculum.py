@@ -11,6 +11,60 @@ curriculum_bp = Blueprint('curriculum_api', __name__, url_prefix='/api/curriculu
 def get_subjects():
     """API endpoint to get all subjects."""
     subjects = Subject.query.all()
+    
+    # Filter out duplicates based on course codes
+    unique_subjects = {}
+    
+    # First, sort subjects by priority - subjects with course codes first
+    subjects_with_codes = []
+    generic_subjects = []
+    
+    for subject in subjects:
+        if '(' in subject.title and ')' in subject.title:
+            subjects_with_codes.append(subject)
+        else:
+            generic_subjects.append(subject)
+    
+    # Process subjects with course codes first
+    for subject in subjects_with_codes:
+        code_part = subject.title.split('(')[-1].split(')')[0]
+        if code_part:
+            course_code = code_part
+            # Check if title contains year information
+            year_info = None
+            if "Year 12" in subject.title:
+                year_info = "Year 12"
+            elif "Year 13" in subject.title:
+                year_info = "Year 13"
+            
+            # Create a composite key that includes year information if available
+            composite_key = course_code
+            if year_info:
+                composite_key = f"{course_code}_{year_info}"
+            
+            # Store by composite key to preserve year distinction
+            if composite_key not in unique_subjects:
+                unique_subjects[composite_key] = subject
+    
+    # Then process generic subjects, only add if base name doesn't exist
+    for subject in generic_subjects:
+        base_name = subject.title.lower().strip()
+        
+        # Check if this is a generic version of a subject we already have
+        should_add = True
+        for key, existing_subject in unique_subjects.items():
+            if base_name in existing_subject.title.lower():
+                # This is a generic version of a subject we already have
+                should_add = False
+                break
+        
+        if should_add:
+            # Only add if not a duplicate
+            unique_subjects[base_name] = subject
+    
+    # Use the filtered list
+    filtered_subjects = list(unique_subjects.values())
+    
     return jsonify({
         'subjects': [
             {
@@ -19,7 +73,7 @@ def get_subjects():
                 'description': subject.description,
                 'topic_count': len(subject.topics)
             }
-            for subject in subjects
+            for subject in filtered_subjects
         ]
     })
 

@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Load all subjects
   function loadSubjects() {
-    fetch('/curriculum/api/subjects')
+    fetch('/api/curriculum/subjects')
       .then(response => response.json())
       .then(data => {
         if (data.subjects && data.subjects.length > 0) {
@@ -136,7 +136,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Clear subtopics first
     subtopicsContainer.innerHTML = '<p class="loading-state">Loading all subtopics...</p>';
     
-    fetch(`/curriculum/api/subject/${subjectId}/topics`)
+    fetch(`/api/curriculum/subject/${subjectId}/topics`)
       .then(response => {
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
@@ -216,7 +216,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Load subtopics for a topic and store them in topic container
   function loadSubtopicsForTopic(topicId) {
     console.log(`Loading subtopics for topic ${topicId}`);
-    return fetch(`/curriculum/api/topic/${topicId}/subtopics`)
+    return fetch(`/api/curriculum/topic/${topicId}/subtopics`)
       .then(response => {
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
@@ -457,7 +457,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
       
-      fetch(`/curriculum/api/curriculum/search?q=${encodeURIComponent(query)}`)
+      fetch(`/api/curriculum/search?q=${encodeURIComponent(query)}`)
         .then(response => response.json())
         .then(data => {
           if (!data.results) return;
