@@ -4,6 +4,56 @@
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/curriculum.css') }}">
+<style>
+  .curriculum-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  
+  .curriculum-panel {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .panel-title {
+    margin-top: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .item-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  .item {
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  .item.selected {
+    background-color: rgba(100, 149, 237, 0.3);
+  }
+  
+  .subtopic-duration {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.7);
+    float: right;
+  }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -18,33 +68,144 @@
   <!-- Three-panel layout -->
   <div class="curriculum-container">
     <!-- Subjects panel -->
-    <div class="glass-card subjects-panel">
+    <div class="curriculum-panel">
       <h2 class="panel-title">Subjects</h2>
-      <ul class="subject-list" id="subject-list">
-        <!-- Will be populated by JavaScript -->
+      <ul class="item-list" id="subject-list">
         <li class="empty-state">Loading subjects...</li>
       </ul>
     </div>
     
     <!-- Topics panel -->
-    <div class="glass-card topics-panel">
+    <div class="curriculum-panel">
       <h2 class="panel-title">Topics</h2>
-      <div class="topics-container" id="topics-container">
-        <p class="empty-state">Select a subject to view topics</p>
-      </div>
+      <ul class="item-list" id="topic-list">
+        <li class="empty-state">Select a subject to view topics</li>
+      </ul>
     </div>
     
     <!-- Subtopics panel -->
-    <div class="glass-card subtopics-panel">
+    <div class="curriculum-panel">
       <h2 class="panel-title">Subtopics</h2>
-      <div class="subtopics-container" id="subtopics-container">
-        <p class="empty-state">Select a topic to view subtopics</p>
-      </div>
+      <ul class="item-list" id="subtopic-list">
+        <li class="empty-state">Select a topic to view subtopics</li>
+      </ul>
     </div>
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/curriculum.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const subjectList = document.getElementById('subject-list');
+  const topicList = document.getElementById('topic-list');
+  const subtopicList = document.getElementById('subtopic-list');
+  
+  let curriculumData = null;
+  let selectedSubject = null;
+  let selectedTopic = null;
+  
+  // Fetch the curriculum data
+  fetch('/api/curriculum/hierarchy')
+    .then(response => response.json())
+    .then(data => {
+      if (data.success && data.hierarchy) {
+        curriculumData = data.hierarchy;
+        renderSubjects();
+      } else {
+        subjectList.innerHTML = '<li class="empty-state">Error loading curriculum data</li>';
+      }
+    })
+    .catch(error => {
+      console.error('Error fetching curriculum data:', error);
+      subjectList.innerHTML = '<li class="empty-state">Error loading curriculum data</li>';
+    });
+  
+  function renderSubjects() {
+    subjectList.innerHTML = '';
+    
+    curriculumData.forEach(subject => {
+      const li = document.createElement('li');
+      li.className = 'item subject-item';
+      li.textContent = subject.title;
+      li.dataset.id = subject.id;
+      
+      li.addEventListener('click', () => {
+        // Deselect previous subject
+        document.querySelectorAll('.subject-item.selected').forEach(el => {
+          el.classList.remove('selected');
+        });
+        
+        // Select this subject
+        li.classList.add('selected');
+        selectedSubject = subject;
+        renderTopics();
+        
+        // Clear subtopics
+        subtopicList.innerHTML = '<li class="empty-state">Select a topic to view subtopics</li>';
+        selectedTopic = null;
+      });
+      
+      subjectList.appendChild(li);
+    });
+  }
+  
+  function renderTopics() {
+    topicList.innerHTML = '';
+    
+    if (!selectedSubject || !selectedSubject.topics.length) {
+      topicList.innerHTML = '<li class="empty-state">No topics found for this subject</li>';
+      return;
+    }
+    
+    selectedSubject.topics.forEach(topic => {
+      const li = document.createElement('li');
+      li.className = 'item topic-item';
+      li.textContent = topic.title;
+      li.dataset.id = topic.id;
+      
+      li.addEventListener('click', () => {
+        // Deselect previous topic
+        document.querySelectorAll('.topic-item.selected').forEach(el => {
+          el.classList.remove('selected');
+        });
+        
+        // Select this topic
+        li.classList.add('selected');
+        selectedTopic = topic;
+        renderSubtopics();
+      });
+      
+      topicList.appendChild(li);
+    });
+  }
+  
+  function renderSubtopics() {
+    subtopicList.innerHTML = '';
+    
+    if (!selectedTopic || !selectedTopic.subtopics.length) {
+      subtopicList.innerHTML = '<li class="empty-state">No subtopics found for this topic</li>';
+      return;
+    }
+    
+    selectedTopic.subtopics.forEach(subtopic => {
+      const li = document.createElement('li');
+      li.className = 'item subtopic-item';
+      li.dataset.id = subtopic.id;
+      
+      const titleSpan = document.createElement('span');
+      titleSpan.textContent = subtopic.title;
+      
+      const durationSpan = document.createElement('span');
+      durationSpan.className = 'subtopic-duration';
+      durationSpan.textContent = `${subtopic.duration} min`;
+      
+      li.appendChild(titleSpan);
+      li.appendChild(durationSpan);
+      
+      subtopicList.appendChild(li);
+    });
+  }
+});
+</script>
 {% endblock %}
